@@ -54,7 +54,7 @@ const inventorySchema = new mongoose.Schema({
 }, { timestamps: true });
 
 
-inventorySchema.index({ storeId: 1, variantId: 1 }, { unique: true });
+inventorySchema.index({ storeId: 1, variantId: 1 });
 
 const Inventory = mongoose.model("Inventory", inventorySchema);
 

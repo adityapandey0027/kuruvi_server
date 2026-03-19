@@ -42,3 +42,9 @@ variantSchema.index({ productId: 1 }); // Speeds up fetching variants for a prod
 const Variant = mongoose.model("Variant", variantSchema);
 
 export default Variant;
+
+
+
+
+
+
