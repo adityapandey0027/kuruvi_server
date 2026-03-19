@@ -44,7 +44,7 @@ export const createCategory = asyncHandler(async (req, res, next) => {
     res.status(201).json({
         success: true,
         message: "Category created successfully",
-        category
+        data: category
     });
 
 });
@@ -122,48 +122,48 @@ export const getParentWithChildren = asyncHandler(async (req, res) => {
 
 export const getSubCategoriesByCategory = asyncHandler(async (req, res) => {
 
-  const { parentId } = req.params;
+    const { parentId } = req.params;
 
-  const category = await Category.aggregate([
-    {
-      $match: { _id: new mongoose.Types.ObjectId(parentId), isActive: true }
-    },
-    {
-      $lookup: {
-        from: "categories",
-        let: { parentId: "$_id" },
-        pipeline: [
-          {
-            $match: {
-              $expr: { $eq: ["$parentId", "$$parentId"] },
-              isActive: true
+    const category = await Category.aggregate([
+        {
+            $match: { _id: new mongoose.Types.ObjectId(parentId), isActive: true }
+        },
+        {
+            $lookup: {
+                from: "categories",
+                let: { parentId: "$_id" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$parentId", "$$parentId"] },
+                            isActive: true
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            name: 1,
+                            image: 1
+                        }
+                    }
+                ],
+                as: "subCategories"
             }
-          },
-          {
+        },
+        {
             $project: {
-              _id: 1,
-              name: 1,
-              image: 1
+                _id: 1,
+                name: 1,
+                image: 1,
+                subCategories: 1
             }
-          }
-        ],
-        as: "subCategories"
-      }
-    },
-    {
-      $project: {
-        _id: 1,
-        name: 1,
-        image: 1,
-        subCategories: 1
-      }
-    }
-  ]);
+        }
+    ]);
 
-  res.status(200).json({
-    success: true,
-    data: category[0]
-  });
+    res.status(200).json({
+        success: true,
+        data: category[0]
+    });
 
 });
 
@@ -195,3 +195,4 @@ export const getAllCategories = asyncHandler(async (req, res, next) => {
     });
 
 });
+
