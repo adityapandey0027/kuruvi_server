@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+
+/* Customizing the Carousel Buttons to look like Flipkart */
+.react-multiple-carousel__arrow {
+  background: rgba(255,255,255,0.35) !important;
+  backdrop-filter: blur(6px);
+  border-radius: 8px !important;
+  min-width: 45px !important;
+  min-height: 80px !important;
+  transition: all 0.3s ease;
+  opacity: 0;
+}
+
+/* show arrows on hover */
+.carousel-container:hover .react-multiple-carousel__arrow {
+  opacity: 1;
+}
+
+.react-multiple-carousel__arrow:hover {
+  background: rgba(255,255,255,0.9) !important;
+  transform: scale(1.05);
+}
+
+.react-multiple-carousel__arrow--left {
+  left: 10px !important;
+}
+
+.react-multiple-carousel__arrow--right {
+  right: 10px !important;
+}

@@ -28,179 +28,179 @@ export const getStoreProducts = asyncHandler(async (req, res) => {
 
 export const getStoreProductsByCategory = asyncHandler(async (req, res) => {
 
-    const { storeId } = req.params;
-    const { categoryId, page = 1, limit = 20 } = req.query;
+  const { storeId } = req.params;
+  const { categoryId, page = 1, limit = 20 } = req.query;
 
-    const skip = (page - 1) * limit;
+  const skip = (page - 1) * limit;
 
-    const products = await Inventory.aggregate([
+  const products = await Inventory.aggregate([
 
-        // 1. filter by store
-        {
-            $match: {
-                storeId: new mongoose.Types.ObjectId(storeId),
-                isAvailable: true,
-                stock: { $gt: 0 }
-            }
-        },
+    // 1. filter by store
+    {
+      $match: {
+        storeId: new mongoose.Types.ObjectId(storeId),
+        isAvailable: true,
+        stock: { $gt: 0 }
+      }
+    },
 
-        // 2. join variant
-        {
-            $lookup: {
-                from: "variants",
-                localField: "variantId",
-                foreignField: "_id",
-                as: "variant"
-            }
-        },
-        { $unwind: "$variant" },
+    // 2. join variant
+    {
+      $lookup: {
+        from: "variants",
+        localField: "variantId",
+        foreignField: "_id",
+        as: "variant"
+      }
+    },
+    { $unwind: "$variant" },
 
-        // 3. join product
-        {
-            $lookup: {
-                from: "products",
-                localField: "variant.productId",
-                foreignField: "_id",
-                as: "product"
-            }
-        },
-        { $unwind: "$product" },
+    // 3. join product
+    {
+      $lookup: {
+        from: "products",
+        localField: "variant.productId",
+        foreignField: "_id",
+        as: "product"
+      }
+    },
+    { $unwind: "$product" },
 
-        // 4. filter category
-        ...(categoryId ? [{
-            $match: {
-                "product.categoryId": new mongoose.Types.ObjectId(categoryId)
-            }
-        }] : []),
+    // 4. filter category
+    ...(categoryId ? [{
+      $match: {
+        "product.categoryId": new mongoose.Types.ObjectId(categoryId)
+      }
+    }] : []),
 
-        // 5. shape response
-        {
-            $project: {
-                _id: 0,
-                productId: "$product._id",
-                name: "$product.name",
-                brand: "$product.brand",
+    // 5. shape response
+    {
+      $project: {
+        _id: 0,
+        productId: "$product._id",
+        name: "$product.name",
+        brand: "$product.brand",
 
-                variantId: "$variant._id",
-                size: "$variant.size",
-                unit: "$variant.unit",
+        variantId: "$variant._id",
+        size: "$variant.size",
+        unit: "$variant.unit",
 
-                mrp: "$variant.mrp",
-                price: "$price",
+        mrp: "$variant.mrp",
+        price: "$price",
 
-                stock: "$stock",
+        stock: "$stock",
 
-                image: { $arrayElemAt: ["$variant.images", 0] }
-            }
-        },
+        image: { $arrayElemAt: ["$variant.images", 0] }
+      }
+    },
 
-        // 6. pagination
-        { $skip: skip },
-        { $limit: Number(limit) }
+    // 6. pagination
+    { $skip: skip },
+    { $limit: Number(limit) }
 
-    ]);
+  ]);
 
-    res.status(200).json({
-        success: true,
-        data: products
-    });
+  res.status(200).json({
+    success: true,
+    data: products
+  });
 
 });
 
 export const getStoreProductDetailsById = asyncHandler(async (req, res, next) => {
 
-    const { storeId, productId } = req.params;
+  const { storeId, productId } = req.params;
 
-    const data = await Inventory.aggregate([
+  const data = await Inventory.aggregate([
 
-        // 1. match store
-        {
-            $match: {
-                storeId: new mongoose.Types.ObjectId(storeId),
-                isAvailable: true
-            }
-        },
+    // 1. match store
+    {
+      $match: {
+        storeId: new mongoose.Types.ObjectId(storeId),
+        isAvailable: true
+      }
+    },
 
-        // 2. join variant
-        {
-            $lookup: {
-                from: "variants",
-                localField: "variantId",
-                foreignField: "_id",
-                as: "variant"
-            }
-        },
-        { $unwind: "$variant" },
+    // 2. join variant
+    {
+      $lookup: {
+        from: "variants",
+        localField: "variantId",
+        foreignField: "_id",
+        as: "variant"
+      }
+    },
+    { $unwind: "$variant" },
 
-        // 3. filter by productId
-        {
-            $match: {
-                "variant.productId": new mongoose.Types.ObjectId(productId)
-            }
-        },
+    // 3. filter by productId
+    {
+      $match: {
+        "variant.productId": new mongoose.Types.ObjectId(productId)
+      }
+    },
 
-        // 4. join product
-        {
-            $lookup: {
-                from: "products",
-                localField: "variant.productId",
-                foreignField: "_id",
-                as: "product"
-            }
-        },
-        { $unwind: "$product" },
+    // 4. join product
+    {
+      $lookup: {
+        from: "products",
+        localField: "variant.productId",
+        foreignField: "_id",
+        as: "product"
+      }
+    },
+    { $unwind: "$product" },
 
-        // 5. format response
-        {
-            $project: {
-                _id: 0,
+    // 5. format response
+    {
+      $project: {
+        _id: 0,
 
-                productId: "$product._id",
-                name: "$product.name",
-                brand: "$product.brand",
-                description: "$product.description",
+        productId: "$product._id",
+        name: "$product.name",
+        brand: "$product.brand",
+        description: "$product.description",
 
-                variantId: "$variant._id",
-                size: "$variant.size",
-                unit: "$variant.unit",
-                weight: "$variant.weight",
+        variantId: "$variant._id",
+        size: "$variant.size",
+        unit: "$variant.unit",
+        weight: "$variant.weight",
 
-                mrp: "$variant.mrp",
-                price: "$price",
+        mrp: "$variant.mrp",
+        price: "$price",
 
-                stock: "$stock",
+        stock: "$stock",
 
-                images: "$variant.images"
-            }
-        }
-
-    ]);
-
-    if (!data.length) {
-        return next(new errorHandler("Product not available in this store", 404));
+        images: "$variant.images"
+      }
     }
 
-    // group variants under product
-    const product = {
-        productId: data[0].productId,
-        name: data[0].name,
-        brand: data[0].brand,
-        description: data[0].description,
-        variants: data.map(item => ({
-            variantId: item.variantId,
-            size: item.size,
-            unit: item.unit,
-            mrp: item.mrp,
-            price: item.price,
-            stock: item.stock,
-            images: item.images
-        }))
-    };
+  ]);
 
-    res.status(200).json({
-        success: true,
-        data: product
-    });
+  if (!data.length) {
+    return next(new errorHandler("Product not available in this store", 404));
+  }
+
+  // group variants under product
+  const product = {
+    productId: data[0].productId,
+    name: data[0].name,
+    brand: data[0].brand,
+    description: data[0].description,
+    variants: data.map(item => ({
+      variantId: item.variantId,
+      size: item.size,
+      unit: item.unit,
+      mrp: item.mrp,
+      price: item.price,
+      stock: item.stock,
+      images: item.images
+    }))
+  };
+
+  res.status(200).json({
+    success: true,
+    data: product
+  });
 
 });
 
@@ -230,14 +230,14 @@ export const createInventory = asyncHandler(async (req, res, next) => {
   const [store, variant, existingInventory] = await Promise.all([
     Store.findById(storeId),
     Variant.findById(variantId),
-    Inventory.findOne({ storeId, variantId }) 
+    Inventory.findOne({ storeId, variantId })
   ]);
 
   if (!store) return next(new errorHandler("Store not found", 404));
   if (!variant) return next(new errorHandler("Variant not found", 404));
-  
-  if(variant.mrp < price){
-    return next(new errorHandler("Price is not greater than MRP",400));
+
+  if (variant.mrp < price) {
+    return next(new errorHandler("Price is not greater than MRP", 400));
   }
 
   if (existingInventory) {
