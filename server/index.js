@@ -11,6 +11,7 @@ import categoryRoute from './routes/categoryRoutes.js';
 import storeRoute from './routes/storeRoute.js';
 import productRoutes from './routes/productRoutes.js';
 import inventoryRoute from './routes/inventoryRoutes.js';
+import adminRouter from './routes/adminRoutes.js';
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -31,7 +32,9 @@ app.use("/api/auth", authRouter);
 app.use("/api/categories", categoryRoute);
 app.use("/api/stores", storeRoute);
 app.use("/api/products", productRoutes);
-app.use("/api/inventories", inventoryRoute)
+app.use("/api/inventories", inventoryRoute);
+app.use("/api/admin", adminRouter);
+
 app.get("/", (req, res) => {
   res.send("Server is running");
 });

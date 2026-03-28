@@ -1,6 +1,6 @@
 import express from 'express';
 import { rateLmitOtp } from '../middlewares/rateLimiter.js';
-import { login, loginWithOtp } from '../controllers/authController.js';
+import { adminLogin, login, loginWithOtp, storeLogin } from '../controllers/authController.js';
 
 const authRouter = express.Router();
 

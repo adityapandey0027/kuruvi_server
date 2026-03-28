@@ -5,6 +5,8 @@ import connection from "../config/redis.js";
 import { otpRateKey, redisOTPKey } from "../const/constValue.js";
 import User from "../models/userModel.js";
 import jwt from "jsonwebtoken";
+import Admin from "../models/adminModel.js";
+import Store from "../models/storeModel.js";
 
 export const loginWithOtp = asyncHandler(async (req, res, next) => {
     const { mobile } = req.body;
@@ -71,3 +73,69 @@ export const login = asyncHandler(async (req, res, next) => {
         token
     })
 })
+
+export const adminLogin = asyncHandler(async (req, res, next) => {
+    const { email, password } = req.body;
+    if (!email || !password) {
+        return next(new errorHandler("Email and password are required", 400));
+    }
+
+    const admin = await Admin.findOne({ email: email });
+
+    if (!admin) {
+        return next(new errorHandler("Admin not found", 404));
+    }
+
+    const isMatch = await admin.matchPassword(password);
+
+    if (!isMatch) {
+        return next(new errorHandler("Invalid credentials", 401));
+    }
+
+    const jwtEx = process.env.JWT_EXPIRES || "30d"
+
+    const token = await jwt.sign({ _id: admin._id, role: admin.role }, process.env.JWT_SECRET, {
+        expiresIn: jwtEx
+    })
+
+    res.status(200).json({
+        success: true,
+        message: "Admin login successful",
+        admin,
+        token
+    })
+})
+
+export const storeLogin = asyncHandler(async (req, res, next) => {
+    const { email, password } = req.body;
+    if (!email || !password) {
+        return next(new errorHandler("Email and password are required", 400));
+    }
+
+    const store = await Store.findOne({ email: email });
+
+    if (!store) {
+        return next(new errorHandler("Store not found", 404));
+    }
+
+    const isMatch = await store.matchPassword(password);
+
+    if (!isMatch) {
+        return next(new errorHandler("Invalid credentials", 401));
+    }
+
+    const jwtEx = process.env.JWT_EXPIRES || "30d"
+
+    const token = await jwt.sign({ _id: store._id, role: "store" }, process.env.JWT_SECRET, {
+        expiresIn: jwtEx
+    })
+
+    res.status(200).json({
+        success: true,
+        message: "Store login successful",
+        store,
+        token
+    })
+})
+
+

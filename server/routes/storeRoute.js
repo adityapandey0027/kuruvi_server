@@ -4,9 +4,18 @@ import { isAuth } from '../middlewares/isAuthMiddleware.js';
 
 const storeRoute = express.Router();
 
+
+// web routes 
+storeRoute.post('/warehouse/login', storeLogin);
+
+
+
+
+// app routes
+
 storeRoute.post("/nearest", getNearestStore);
 
-
+// dyanamic routes
 storeRoute.get("/", isAuth, getAllDarkStore);
 storeRoute.post("/", isAuth, createDarkStore);
 storeRoute.patch("/:id",isAuth, updateDarkStore);
