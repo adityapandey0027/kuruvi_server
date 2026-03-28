@@ -9,6 +9,7 @@ categoryRoute.get("/parent", getParentCategories);
 categoryRoute.get("/menu", getParentWithChildren);
 categoryRoute.get("/:parentId/subcategories", getSubCategoriesByCategory);
 
+
 // CRUD routes
 categoryRoute.post("/", isAuth, createCategory);
 categoryRoute.patch("/:id", updateCategory);
