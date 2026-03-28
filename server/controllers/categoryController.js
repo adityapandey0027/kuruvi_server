@@ -5,12 +5,19 @@ import connection from "../config/redis.js";
 import Category from "../models/categoryModel.js"
 import mongoose from "mongoose";
 
+import uploadToS3, { deleteFromS3 } from "../services/s3Services.js";
+
+
 export const createCategory = asyncHandler(async (req, res, next) => {
 
-    const { name, parentId, image } = req.body || {};
+    const { name, parentId } = req.body || {};
 
-    if (!name || !image) {
-        return next(new errorHandler("Name and image are required", 400));
+    if (!name) {
+        return next(new errorHandler("Name is required", 400));
+    }
+
+    if (!req.file) {
+        return next(new errorHandler("Image is required", 400));
     }
 
     let level = 0;
@@ -34,11 +41,14 @@ export const createCategory = asyncHandler(async (req, res, next) => {
         return next(new errorHandler("Category already exists", 400));
     }
 
+    const imageData = await uploadToS3(req.file, 'categories');
+
     const category = await Category.create({
         name,
         parentId: parentId || null,
         level,
-        image
+        image: imageData.url, 
+        imageKey: imageData.key 
     });
 
     res.status(201).json({
@@ -46,18 +56,44 @@ export const createCategory = asyncHandler(async (req, res, next) => {
         message: "Category created successfully",
         data: category
     });
-
 });
+
+
 
 export const updateCategory = asyncHandler(async (req, res, next) => {
     const id = req.params.id;
-    const category = null
+
+    let category = await Category.findById(id);
+
+    if (!category) {
+        return next(new errorHandler("Category not found", 404));
+    }
+
+    let imageData = null;
+
+    if (req.file) {
+        imageData = await uploadToS3(req.file, 'categories');
+
+        if (category.imageKey) {
+            await deleteFromS3(category.imageKey);
+        }
+    }
+
+    const updateData = {
+        name: req.body.name || category.name,
+        image: imageData ? imageData.url : category.image,
+        imageKey: imageData ? imageData.key : category.imageKey
+    };
+
+    category = await Category.findByIdAndUpdate(id, updateData, { new: true });
+
     res.status(200).json({
         success: true,
         message: "Category updated successfully",
         category
-    })
-})
+    });
+});
+
 
 export const deleteCategory = asyncHandler(async (req, res, next) => {
     const id = req.params.id;
@@ -196,3 +232,29 @@ export const getAllCategories = asyncHandler(async (req, res, next) => {
 
 });
 
+
+export const getDropdownCategories = asyncHandler(async (req, res, next) => {
+    const q = req.query.q || "";
+
+    const query = {
+        isActive: true
+    };
+
+    if (q) {
+        query.name = { $regex: q, $options: "i" };
+    } else {
+        query.parentId = null;
+    }
+
+    const categories = await Category.find(query)
+        .select('_id name image parentId level')
+        .sort({ name: 1 })
+        .limit(10) 
+        .lean();
+
+    res.status(200).json({
+        success: true,
+        count: categories.length,
+        data: categories
+    });
+});

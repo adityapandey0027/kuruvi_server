@@ -23,6 +23,9 @@ const categorySchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    imageKey: {
+        type: String,
+    },
     isActive: {
         type: Boolean,
         default: true

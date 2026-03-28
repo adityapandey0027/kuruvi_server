@@ -5,8 +5,9 @@ import connection from "../config/redis.js";
 import { otpRateKey, redisOTPKey } from "../const/constValue.js";
 import User from "../models/userModel.js";
 import jwt from "jsonwebtoken";
-import Admin from "../models/adminModel.js";
 import Store from "../models/storeModel.js";
+import Admin from "../models/adminModel.js";
+import bcrypt from "bcryptjs";
 
 export const loginWithOtp = asyncHandler(async (req, res, next) => {
     const { mobile } = req.body;
@@ -86,7 +87,7 @@ export const adminLogin = asyncHandler(async (req, res, next) => {
         return next(new errorHandler("Admin not found", 404));
     }
 
-    const isMatch = await admin.matchPassword(password);
+    const isMatch = await bcrypt.compare(password, admin.password);
 
     if (!isMatch) {
         return next(new errorHandler("Invalid credentials", 401));
@@ -97,11 +98,12 @@ export const adminLogin = asyncHandler(async (req, res, next) => {
     const token = await jwt.sign({ _id: admin._id, role: admin.role }, process.env.JWT_SECRET, {
         expiresIn: jwtEx
     })
+    admin.password = undefined;
 
     res.status(200).json({
         success: true,
         message: "Admin login successful",
-        admin,
+        user: admin,
         token
     })
 })
@@ -137,5 +139,7 @@ export const storeLogin = asyncHandler(async (req, res, next) => {
         token
     })
 })
+
+
 
 

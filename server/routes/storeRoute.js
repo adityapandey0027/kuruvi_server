@@ -1,12 +1,13 @@
 import express from 'express';
 import { createDarkStore, deleteDarkStore, getAllDarkStore, getNearestStore, updateDarkStore } from '../controllers/darkStoreController.js';
 import { isAuth } from '../middlewares/isAuthMiddleware.js';
+import { storeLogin } from '../controllers/authController.js';
 
 const storeRoute = express.Router();
 
 
 // web routes 
-storeRoute.post('/warehouse/login', storeLogin);
+storeRoute.post('/login', storeLogin);
 
 
 

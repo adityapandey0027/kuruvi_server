@@ -22,7 +22,8 @@ app.use(express.urlencoded({ extended: true }));
 app.use(
   cors({
     origin: [
-      "http://localhost:3000"
+      "http://localhost:3000",
+      "https://nljg1w4q-5173.inc1.devtunnels.ms"
     ],
     credentials: true
   })

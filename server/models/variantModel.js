@@ -9,15 +9,15 @@ const variantSchema = new mongoose.Schema({
     sku: {
         type: String,
         unique: true,
-        required: true 
+        required: true
     },
-    
-    barcode: { 
+
+    barcode: {
         type: String,
         unique: true,
-        sparse: true 
+        sparse: true
     },
-    mrp: { 
+    mrp: {
         type: Number,
         required: true
     },
@@ -28,8 +28,13 @@ const variantSchema = new mongoose.Schema({
 
     weight: Number,
 
-    images: [String],
-    
+    images: [
+        {
+            key: String,
+            url: String
+        }
+    ],
+
     attributes: {
         type: Map,
         of: String
