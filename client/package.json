@@ -10,13 +10,19 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@react-google-maps/api": "^2.20.8",
+    "@reduxjs/toolkit": "^2.11.2",
     "@tailwindcss/vite": "^4.1.17",
     "axios": "^1.13.6",
     "lucide-react": "^0.577.0",
+    "pusher-js": "^8.4.3",
     "react": "^19.2.0",
+    "react-bootstrap-daterangepicker": "^8.0.0",
     "react-countdown": "^2.3.6",
+    "react-datepicker": "^9.1.0",
     "react-dom": "^19.2.0",
     "react-multi-carousel": "^2.8.6",
+    "react-redux": "^9.2.0",
     "react-router-dom": "^7.13.1",
     "react-toastify": "^11.0.5",
     "tailwindcss": "^4.1.17"
