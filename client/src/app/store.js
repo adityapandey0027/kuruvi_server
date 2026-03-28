@@ -1,15 +1,14 @@
 import { configureStore } from '@reduxjs/toolkit';
-// import authReducer from '../features/auth/authSlice';
-// import adminReducer from '../features/admin/adminSlice';
+import authReducer from '../features/auth/slice/authSlice';
 // import warehouseReducer from '../features/warehouse-panel/warehouseSlice';
 
 export const store = configureStore({
   reducer: {
-    // auth: authReducer,       
+    auth: authReducer,       
     // admin: adminReducer,        
     // warehouse: warehouseReducer, 
   },
   // DevTools is enabled by default in development mode
 });
 
-export default store;
+export default store;4
