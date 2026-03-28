@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // 1. Base URL ko env file se uthana best practice hai
 const API = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080/api',
   headers: {
     'Content-Type': 'application/json',
   },

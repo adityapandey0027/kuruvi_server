@@ -13,13 +13,12 @@ import AdminDashboard from '../features/admin/dashboard/pages/AdminDashboard';
 import InhouseOrders from '../features/admin/InhouseOrder/InhouseOrders';
 import OrderDetail from '../features/admin/InhouseOrder/OrderDetail';
 
-// Category & Subcategory Pages
+// Category Page (Ab yahi hierarchy handle karega)
 import Category from '../features/admin/Products/category/Category';
-import Subcategory from '../features/admin/Products/category/Subcategory/pages/Subcategory';
-
-// My Products (New Modular Structure)
-import ProductList from '../features/admin/Products/Myproducts/ProductList'; // Naya Component
 import ProductForm from '../features/admin/Products/Myproducts/ProductForm';
+import ProductList from '../features/admin/Products/Myproducts/ProductList';
+import SubCategoryView from '../features/admin/Products/category/SubCategoryView';
+import ProductDetailView from '../features/admin/Products/myProducts/ProductDetailView';
 
 const AppRouter = () => {
   const { isAuthenticated, user } = useSelector((state) => state.auth);
@@ -41,17 +40,18 @@ const AppRouter = () => {
         
         {/* Inventory Management Routes */}
         <Route path="category" element={<Category />} />
-        <Route path="subcategory" element={<Subcategory />} />
-        
-        {/* Dynamic Product Routes - Corrected Routing */}
-        <Route path="my-products" element={<ProductList />} /> {/* Ab ye List dikhayega */}
-        <Route path="my-products/create" element={<ProductForm />} /> {/* Add Form */}
-        <Route path="my-products/edit/:id" element={<ProductForm />} /> {/* Edit Form */}
+        {/* Subcategory Route Removed */}
+        <Route path="category/sub/:parentId" element={<SubCategoryView />} />
+        {/* Dynamic Product Routes */}
+        <Route path="my-products" element={<ProductList />} />
+        <Route path="my-products/create" element={<ProductForm />} />
+        <Route path="my-products/edit/:id" element={<ProductForm />} />
+        <Route path="my-products/view/:id" element={<ProductDetailView />} />
         
         {/* Dynamic Order View */}
         <Route path="orders/view/:id" element={<OrderDetail />} />
         
-        {/* Remaining Placeholders */}
+        {/* Placeholders */}
         <Route path="orders" element={<div className="p-8 bg-white rounded-[2rem] shadow-sm font-bold uppercase text-[10px] tracking-widest text-slate-400">All Orders History Coming Soon</div>} />
         <Route path="users" element={<div className="p-8 bg-white rounded-[2rem] shadow-sm font-bold uppercase text-[10px] tracking-widest text-slate-400">Customer Records Coming Soon</div>} />
       </Route>

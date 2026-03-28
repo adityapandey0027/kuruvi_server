@@ -61,7 +61,6 @@ const AdminLayout = () => {
             {isProductOpen && (
               <div className="mt-1 space-y-1 animate-in slide-in-from-top-2 duration-200">
                 <NavLink to="/admin/category" className={subLinkStyle}>Category</NavLink>
-                <NavLink to="/admin/subcategory" className={subLinkStyle}>Subcategory</NavLink>
                 <NavLink to="/admin/my-products" className={subLinkStyle}>My Products</NavLink>
               </div>
             )}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { loginUser, clearError } from '../slice/authSlice';
+import { loginAdmin, clearError } from '../slice/authSlice';
 import { toast } from 'react-toastify';
 
 const AdminLogin = () => {
@@ -20,9 +20,9 @@ const AdminLogin = () => {
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    const resultAction = await dispatch(loginUser(formData));
+    const resultAction = await dispatch(loginAdmin(formData));
     
-    if (loginUser.fulfilled.match(resultAction)) {
+    if (loginAdmin.fulfilled.match(resultAction)) {
       toast.success(`Welcome, ${resultAction.payload.user.name}`);
     } else {
       toast.error(resultAction.payload || 'Login failed');
@@ -120,6 +120,17 @@ const AdminLogin = () => {
                 </button>
               </div>
             </form>
+
+            <div className="mt-8 pt-6 border-t border-gray-100 flex items-center justify-center">
+              <button 
+                onClick={() => navigate('/warehouse/login')}
+                className="text-sm font-semibold text-emerald-700 hover:text-emerald-900 transition-colors flex items-center gap-2 group"
+              >
+                <i className="fa fa-arrow-left text-xs group-hover:-translate-x-1 transition-transform"></i>
+                Switch to Store Login
+              </button>
+            </div>
+
           </div>
 
           <p className="mt-8 text-center text-xs text-gray-400">
