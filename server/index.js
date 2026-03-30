@@ -33,15 +33,15 @@ app.use(
   })
 );
 
-app.use("/api/v1/auth", authRouter);
-app.use("/api/v1/categories", categoryRoute);
-app.use("/api/v1/stores", storeRoute);
-app.use("/api/v1/products", productRoutes);
-app.use("/api/v1/inventories", inventoryRoute);
-app.use("/api/v1/admin", adminRouter);
-app.use("/api/v1/orders", orderRouter);
-app.use("/api/v1/users", userRoutes);
-app.use("/api/v1/riders", riderRouter);
+app.use("/v1/auth", authRouter);
+app.use("/v1/categories", categoryRoute);
+app.use("/v1/stores", storeRoute);
+app.use("/v1/products", productRoutes);
+app.use("/v1/inventories", inventoryRoute);
+app.use("/v1/admin", adminRouter);
+app.use("/v1/orders", orderRouter);
+app.use("/v1/users", userRoutes);
+app.use("/v1/riders", riderRouter);
 
 app.get("/", (req, res) => {
   res.send("Server is running");
