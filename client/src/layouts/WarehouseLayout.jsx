@@ -31,9 +31,20 @@ const WarehouseLayout = () => {
         </div>
 
         <nav className="flex-1 px-3 py-6 space-y-2">
-          <NavLink to="/warehouse/stock" className={({ isActive }) => isActive ? activeClass : normalClass}>
+
+          <NavLink to="/warehouse/dashboard" className={({ isActive }) => isActive ? activeClass : normalClass}>
             <span className="text-xl">📦</span>
-            <span className="font-medium">Current Stock</span>
+            <span className="font-medium">Dashboard</span>
+          </NavLink>
+
+          <NavLink to="/warehouse/orders" className={({ isActive }) => isActive ? activeClass : normalClass}>
+            <span className="text-xl">📥</span>
+            <span className="font-medium">Orders</span>
+          </NavLink>
+
+          <NavLink to="/warehouse/inventory" className={({ isActive }) => isActive ? activeClass : normalClass}>
+            <span className="text-xl">📦</span>
+            <span className="font-medium">Inventory Manage</span>
           </NavLink>
 
           <NavLink to="/warehouse/incoming" className={({ isActive }) => isActive ? activeClass : normalClass}>
@@ -63,7 +74,7 @@ const WarehouseLayout = () => {
               <p className="text-[10px] text-emerald-400">Worker ID: {user?.id?.slice(-5) || 'N/A'}</p>
             </div>
           </div>
-          <button 
+          <button
             onClick={handleLogout}
             className="w-full flex items-center justify-center gap-2 bg-red-500/20 text-red-400 hover:bg-red-600 hover:text-white py-2.5 px-4 rounded-lg font-bold text-sm transition-all duration-300 border border-red-500/30"
           >
@@ -81,14 +92,14 @@ const WarehouseLayout = () => {
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
             <h1 className="text-sm font-bold text-slate-600 uppercase tracking-wide">Terminal Active</h1>
           </div>
-          
+
           <div className="flex items-center gap-4 text-slate-500 text-sm">
             <span className="hidden md:block italic">"Precision in every package"</span>
             <div className="h-4 w-[1px] bg-slate-300"></div>
             <span className="font-mono">{new Date().toLocaleDateString()}</span>
           </div>
         </header>
-        
+
         {/* Scrolling Content Container */}
         <div className="p-6 overflow-y-auto flex-1 bg-slate-50">
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 min-h-full p-6">

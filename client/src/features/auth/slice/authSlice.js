@@ -3,7 +3,7 @@ import API from '../../../api/axios';
 
 // 1. Login Admin Action
 export const loginAdmin = createAsyncThunk(
-  'auth/loginAdmin', // Unique action name
+  'auth/loginAdmin', 
   async (formData, { rejectWithValue }) => {
     try {
       const { email, password } = formData;
@@ -30,7 +30,7 @@ export const loginStore = createAsyncThunk(
   async (formData, { rejectWithValue }) => {
     try {
       const { email, password } = formData;
-      const response = await API.post('/store/login', { email, password }); // Path corrected for Store
+      const response = await API.post('/stores/login', { email, password }); 
 
       if (response.data.success) {
         const { token, user, message } = response.data;
@@ -50,15 +50,12 @@ export const loginStore = createAsyncThunk(
 const authSlice = createSlice({
   name: 'auth',
   initialState: {
-    // Initial load pe hi local storage se data utha rahe hain
     user: JSON.parse(localStorage.getItem('user')) || null,
     isAuthenticated: !!localStorage.getItem('token'),
     loading: false,
     error: null,
   },
   reducers: {
-    // Local check ke liye alag se action ki zaroorat nahi, 
-    // initialState hi handle kar raha hai, par logout clean up zaroori hai.
     logout: (state) => {
       localStorage.removeItem('token');
       localStorage.removeItem('user');

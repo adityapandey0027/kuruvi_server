@@ -35,8 +35,8 @@ const WarehouseLogin = () => {
 
   // Redirect Logic: Jab user authenticate ho jaye aur uska role 'warehouse' ho
   useEffect(() => {
-    if (isAuthenticated && user?.role === 'warehouse') {
-      navigate('/warehouse/stock');
+    if (isAuthenticated && user?.role === 'store') {
+      navigate('/warehouse/dashboard');
     }
   }, [isAuthenticated, user, navigate]);
 

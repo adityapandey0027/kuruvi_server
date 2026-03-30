@@ -13,12 +13,26 @@ import AdminDashboard from '../features/admin/dashboard/pages/AdminDashboard';
 import InhouseOrders from '../features/admin/InhouseOrder/InhouseOrders';
 import OrderDetail from '../features/admin/InhouseOrder/OrderDetail';
 
-// Category Page (Ab yahi hierarchy handle karega)
+// Category & Products
 import Category from '../features/admin/Products/category/Category';
 import ProductForm from '../features/admin/Products/Myproducts/ProductForm';
 import ProductList from '../features/admin/Products/Myproducts/ProductList';
 import SubCategoryView from '../features/admin/Products/category/SubCategoryView';
 import ProductDetailView from '../features/admin/Products/myProducts/ProductDetailView';
+import StoreManagement from '../features/admin/store-manage/pages/StoreManagement';
+
+// Members & Delivery Boys
+import CustomerList from '../features/admin/Members/CustomerList';
+import CustomerDetail from '../features/admin/Members/CustomerDetail';
+// --- New Delivery Boy Imports ---
+import DeliveryBoyList from '../features/admin/Members/DeliveryBoy/DeliveryBoyList';
+import DeliveryBoyDetail from '../features/admin/Members/DeliveryBoy/DeliveryBoyDetail';
+
+// Warehouse & Inventory
+import WarehouseDashboard from '../features/warehouse/dashboard/pages/WarehouseDashboard';
+import WarehouseOrders from '../features/warehouse/orders/pages/WarehouseOrders';
+import InventoryManagement from '../features/warehouse/inventory/pages/InventoryManagement';
+import InventoryManage from '../features/admin/inventory-mng/pages/InventoryManagement';
 
 const AppRouter = () => {
   const { isAuthenticated, user } = useSelector((state) => state.auth);
@@ -38,32 +52,43 @@ const AppRouter = () => {
         <Route path="dashboard" element={<AdminDashboard />} />
         <Route path="inhouse-orders" element={<InhouseOrders />} />
         
-        {/* Inventory Management Routes */}
+        {/* Inventory Management */}
         <Route path="category" element={<Category />} />
-        {/* Subcategory Route Removed */}
         <Route path="category/sub/:parentId" element={<SubCategoryView />} />
-        {/* Dynamic Product Routes */}
         <Route path="my-products" element={<ProductList />} />
         <Route path="my-products/create" element={<ProductForm />} />
         <Route path="my-products/edit/:id" element={<ProductForm />} />
         <Route path="my-products/view/:id" element={<ProductDetailView />} />
+        <Route path="stores/" element={<StoreManagement />} />
+        <Route path="inventory" element={<InventoryManage />} />
+{/* 
+        <Route path="/admin/my-products/create" element={<ProductForm />} />
+        <Route path="/admin/my-products/edit/:id" element={<ProductForm />} /> */}
+
+        {/* Members / Customers */}
+        <Route path="users" element={<CustomerList />} />
+        <Route path="customer/view/:id" element={<CustomerDetail />} />
+
+        {/* Delivery Boy Management (REAL ROUTES) */}
+        <Route path="delivery-boys" element={<DeliveryBoyList />} />
+        <Route path="delivery-boys/view/:id" element={<DeliveryBoyDetail />} />
         
         {/* Dynamic Order View */}
         <Route path="orders/view/:id" element={<OrderDetail />} />
         
         {/* Placeholders */}
         <Route path="orders" element={<div className="p-8 bg-white rounded-[2rem] shadow-sm font-bold uppercase text-[10px] tracking-widest text-slate-400">All Orders History Coming Soon</div>} />
-        <Route path="users" element={<div className="p-8 bg-white rounded-[2rem] shadow-sm font-bold uppercase text-[10px] tracking-widest text-slate-400">Customer Records Coming Soon</div>} />
       </Route>
 
       {/* 3. Warehouse Protected Routes */}
       <Route
         path="/warehouse"
-        element={isAuthenticated && user?.role === 'warehouse' ? <WarehouseLayout /> : <Navigate to="/warehouse/login" />}
+        element={isAuthenticated && user?.role === 'store' ? <WarehouseLayout /> : <Navigate to="/warehouse/login" />}
       >
-        <Route index element={<Navigate to="/warehouse/stock" />} />
-        <Route path="stock" element={<div className="p-8 bg-white rounded-2xl shadow-sm font-bold text-emerald-800 tracking-tight">Warehouse Inventory</div>} />
-        <Route path="incoming" element={<div className="p-8 bg-white rounded-2xl shadow-sm font-bold text-emerald-800 tracking-tight">Incoming Shipments</div>} />
+        <Route index element={<Navigate to="/warehouse/dashboad" />} />
+        <Route path="dashboard" element={<WarehouseDashboard />} />
+        <Route path="orders" element={<WarehouseOrders />} />
+        <Route path="inventory" element={<InventoryManagement />} />
       </Route>
 
       {/* 4. Global Redirects */}
