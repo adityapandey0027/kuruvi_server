@@ -8,6 +8,7 @@ import jwt from "jsonwebtoken";
 import Store from "../models/storeModel.js";
 import Admin from "../models/adminModel.js";
 import bcrypt from "bcryptjs";
+import Rider from "../models/riderModel.js";
 
 export const loginWithOtp = asyncHandler(async (req, res, next) => {
     const { mobile } = req.body;
@@ -120,7 +121,7 @@ export const storeLogin = asyncHandler(async (req, res, next) => {
         return next(new errorHandler("Store not found", 404));
     }
 
-    const isMatch = await store.matchPassword(password);
+    const isMatch = await bcrypt.compare(password, store.password);
 
     if (!isMatch) {
         return next(new errorHandler("Invalid credentials", 401));
@@ -135,11 +136,41 @@ export const storeLogin = asyncHandler(async (req, res, next) => {
     res.status(200).json({
         success: true,
         message: "Store login successful",
-        store,
+        user: store,
         token
     })
 })
 
+export const riderLogin = asyncHandler(async (req, res, next) => {
+    const { email, password } = req.body;
+    if (!email || !password) {
+        return next(new errorHandler("Email and password are required", 400));
+    }
 
+    const rider = await Rider.findOne({ email: email });
+
+    if (!rider) {
+        return next(new errorHandler("Rider not found", 404));
+    }
+
+    const isMatch = await bcrypt.compare(password, rider.password);
+
+    if (!isMatch) {
+        return next(new errorHandler("Invalid credentials", 401));
+    }
+
+    const jwtEx = process.env.JWT_EXPIRES || "30d"
+
+    const token = await jwt.sign({ _id: rider._id, role: rider.role }, process.env.JWT_SECRET, {
+        expiresIn: jwtEx
+    })
+
+    res.status(200).json({
+        success: true,
+        message: "Rider login successful",
+        user: rider,
+        token
+    })
+})
 
 

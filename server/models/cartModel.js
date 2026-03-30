@@ -1,30 +1,28 @@
 import mongoose from "mongoose";
 
 const cartSchema = new mongoose.Schema({
-    userId : {
-        type : mongoose.Schema.Types.ObjectId,
-        ref : "User"
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User"
     },
-    storeId : {
-        type : mongoose.Schema.Types.ObjectId,
-        ref : "Store"
+    storeId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Store"
     },
-    items : [{
-        varientId : {
-            type : mongoose.Schema.Types.ObjectId,
-            ref : "Variant"
+    items: [{
+        variantId: { 
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Variant"
         },
-        quantity : {
-            type : Number
+        quantity: {
+            type: Number,
+            default: 1
         },
-        price : {
-            type : Number
-        }
+        price: Number
     }],
-},{
-    timestamps : true
+}, {
+    timestamps: true
 });
-
 cartSchema.index({ userId: 1, storeId: 1 }); 
 cartSchema.index({ updatedAt: 1 }, { expireAfterSeconds: 18000 });
 

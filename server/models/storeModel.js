@@ -12,6 +12,11 @@ const storeSchema = new mongoose.Schema({
     password : {
         type : String
     },
+    role : {
+        type : String,
+        enum : ["store"],
+        default : "store"
+    },
     city: {
         type: String
     },

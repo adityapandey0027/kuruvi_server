@@ -17,8 +17,8 @@ storeRoute.post('/login', storeLogin);
 storeRoute.post("/nearest", getNearestStore);
 
 // dyanamic routes
-storeRoute.get("/", isAuth, getAllDarkStore);
-storeRoute.post("/", isAuth, createDarkStore);
+storeRoute.get("/", getAllDarkStore);
+storeRoute.post("/", createDarkStore);
 storeRoute.patch("/:id",isAuth, updateDarkStore);
 storeRoute.delete("/:id",  isAuth, deleteDarkStore);
 

@@ -1,7 +1,7 @@
 import { errorHandler } from "../utilities/errorHandler.utils.js";
 import { asyncHandler } from "../utilities/asyncHandler.utils.js";
 import Store from "../models/storeModel.js";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 
 export const createDarkStore = asyncHandler(async (req, res, next) => {
 

@@ -1,6 +1,6 @@
 import express from 'express';
-import { isAuth } from '../middlewares/isAuthMiddleware.js';
-import { createProduct, createVariant, getProducts, getProductById, getProductWithVariantById, getAllProducts } from '../controllers/productController.js';
+import { isAdmin, isAuth } from '../middlewares/isAuthMiddleware.js';
+import { createProduct, createVariant, getProducts, getProductById, getProductWithVariantById, getAllProducts, getVarauriantsBySearch, editProduct, deleteProduct } from '../controllers/productController.js';
 import upload from '../middlewares/uploadMiddleware.js';
 
 const productRoutes = express.Router();
@@ -9,10 +9,16 @@ productRoutes.post("/variant", isAuth,upload.array('image', 6), createVariant);
 
 productRoutes.get("/product-variant/:id", getProductWithVariantById);
 
+// search and get variant 
+productRoutes.get("/variants/search", getVarauriantsBySearch);
+
 productRoutes.get("/all", getAllProducts);
 
 // dyanamic route  for products
 productRoutes.get("/", getProducts);
 productRoutes.get("/:id", getProductById);
 productRoutes.post("/", upload.any(), createProduct);
+
+productRoutes.delete("/:id", isAdmin, deleteProduct);
+productRoutes.put("/:id", isAdmin,upload.any(), editProduct);
 export default productRoutes;

@@ -6,6 +6,14 @@ const orderSchema = new mongoose.Schema({
         ref: "User",
         required: true
     },
+    orderId: {
+        type: String,
+        unique: true
+    },
+    paymentOption: {
+        type: String,
+        enum: ["COD", "ONLINE"]
+    },
     storeId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Store",
@@ -15,28 +23,11 @@ const orderSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: "Rider"
     },
-    address: {
-        type: Object,
-        required: true
-    },
-    
-    items: [{
-        variantId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "Variant",
-            required: true
-        },
-        quantity: {
-            type: Number,
-            required: true,
-            min: 1
-        },
-        price: { 
-            type: Number,
-            required: true
-        }
-    }],
+    addressId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "UserAddress",
 
+    },
     itemTotal: {
         type: Number,
         required: true,
@@ -54,11 +45,10 @@ const orderSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-    totalAmount: { 
+    totalAmount: {
         type: Number,
         required: true
     },
-
     status: {
         type: String,
         enum: [
@@ -75,13 +65,17 @@ const orderSchema = new mongoose.Schema({
         type: String,
         enum: ["PENDING", "SUCCESS"],
         default: "PENDING"
+    },
+    razorpayOrderId : {
+        type : String,
+        default : null
     }
 }, {
     timestamps: true
 });
 
 orderSchema.index({ userId: 1, createdAt: -1 });
-orderSchema.index({ storeId: 1, status: 1 }); 
+orderSchema.index({ storeId: 1, status: 1 });
 
 const Order = mongoose.model("Order", orderSchema);
 

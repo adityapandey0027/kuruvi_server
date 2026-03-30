@@ -28,6 +28,11 @@ const riderSchema = new mongoose.Schema({
     type : String
   },
 
+  isActive : {
+    type : Boolean,
+    default : true
+  },
+
   activeOrders:Number
 
 },{
@@ -35,6 +40,8 @@ const riderSchema = new mongoose.Schema({
 });
 
 riderSchema.index({ location:"2dsphere" });
+riderSchema.index({ createdAt: -1 });
+riderSchema.index({ name: "text", email: "text", phone: "text" });
 
 const Rider = mongoose.model("Rider", riderSchema);
 export default Rider;
