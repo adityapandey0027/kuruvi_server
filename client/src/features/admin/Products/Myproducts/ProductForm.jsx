@@ -126,7 +126,6 @@ const ProductForm = () => {
   };
 
   const saveVariant = () => {
-    if (!tempVariant.sku || !tempVariant.mrp) return toast.warning("SKU and MRP are required");
     const updated = [...variants];
     if (editingIndex !== null) updated[editingIndex] = tempVariant;
     else updated.push({ ...tempVariant });
