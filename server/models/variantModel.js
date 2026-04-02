@@ -1,3 +1,5 @@
+import mongoose from "mongoose";
+
 const variantSchema = new mongoose.Schema({
     productId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -41,3 +43,7 @@ const variantSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 variantSchema.index({ productId: 1 });
+
+const Variant = mongoose.model("Variant", variantSchema);
+
+export default Variant;

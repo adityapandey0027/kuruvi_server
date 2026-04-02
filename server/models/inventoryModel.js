@@ -1,3 +1,5 @@
+import mongoose from "mongoose";
+
 const inventorySchema = new mongoose.Schema({
 
   storeId: {
@@ -53,3 +55,7 @@ const inventorySchema = new mongoose.Schema({
 }, { timestamps: true });
 
 inventorySchema.index({ storeId: 1, variantId: 1 }, { unique: true }); 
+
+const Inventory = mongoose.model("Inventory", inventorySchema);
+
+export default Inventory;
