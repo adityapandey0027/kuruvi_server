@@ -214,7 +214,7 @@ const InventoryForm = ({ onBack, refresh, fixedStoreId }) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await API.post('/inventory', formData);
+      await API.post('/inventories', formData);
       toast.success("Stock assigned successfully!");
       refresh();
       onBack();

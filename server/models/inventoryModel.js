@@ -1,5 +1,3 @@
-import mongoose from "mongoose";
-
 const inventorySchema = new mongoose.Schema({
 
   storeId: {
@@ -31,20 +29,21 @@ const inventorySchema = new mongoose.Schema({
     min: 0 
   },
 
-  
   batchNumber: {
     type: String,
+    default: undefined, 
+    trim: true
   },
   
   expiryDate: {
     type: Date,
+    default: undefined
   },
   
   lowStockThreshold: {
     type: Number,
     default: 5,
   },
-
 
   isAvailable: {
     type: Boolean,
@@ -53,9 +52,4 @@ const inventorySchema = new mongoose.Schema({
 
 }, { timestamps: true });
 
-
-inventorySchema.index({ storeId: 1, variantId: 1 });
-
-const Inventory = mongoose.model("Inventory", inventorySchema);
-
-export default Inventory;
+inventorySchema.index({ storeId: 1, variantId: 1 }, { unique: true }); 

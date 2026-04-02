@@ -219,8 +219,8 @@ export const createInventory = asyncHandler(async (req, res, next) => {
     return next(new errorHandler("storeId, variantId, and price are required", 400));
   }
 
-  if (stock - lowStock < 0) {
-    return next(new errorHandler("Min stock is not greater than current stock", 400));
+  if (stock < lowStock) {
+    return next(new errorHandler("Low stock threshold cannot be greater than stock", 400));
   }
 
   if (price <= 0) {
@@ -237,22 +237,33 @@ export const createInventory = asyncHandler(async (req, res, next) => {
   if (!variant) return next(new errorHandler("Variant not found", 404));
 
   if (variant.mrp < price) {
-    return next(new errorHandler("Price is not greater than MRP", 400));
+    return next(new errorHandler("Price cannot exceed MRP", 400));
   }
 
   if (existingInventory) {
     return next(new errorHandler("Inventory already exists for this variant in this store", 400));
   }
 
-  const inventory = await Inventory.create({
+  const inventoryData = {
     storeId,
     variantId,
     price,
     stock,
-    lowStockThreshold: lowStock,
-    batchNumber,
-    expiryDate
-  });
+    lowStockThreshold: lowStock
+  };
+
+  if (batchNumber) {
+    inventoryData.batchNumber = batchNumber.trim();
+  }
+
+  if (expiryDate) {
+    const parsedDate = new Date(expiryDate);
+    if (!isNaN(parsedDate)) {
+      inventoryData.expiryDate = parsedDate;
+    }
+  }
+
+  const inventory = await Inventory.create(inventoryData);
 
   res.status(201).json({
     success: true,

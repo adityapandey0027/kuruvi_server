@@ -173,4 +173,20 @@ export const riderLogin = asyncHandler(async (req, res, next) => {
     })
 })
 
+const insetAdmin = async () => {
+    const name = "Admin";
+    const email = "admin@gamil.com";
+    const role = "admin";
+    const password = "admin123";
 
+    const newAdmin = await Admin.create({
+        name,
+        email,
+        role,
+        password: await bcrypt.hash(password, 10)
+    })
+
+    console.log("Admin created", newAdmin);
+}
+
+// insetAdmin();

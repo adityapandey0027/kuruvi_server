@@ -1,31 +1,29 @@
-import mongoose from "mongoose";
-
 const variantSchema = new mongoose.Schema({
     productId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Product",
         required: true
     },
+
     sku: {
         type: String,
         unique: true,
-        required: true
+        sparse: true 
     },
 
     barcode: {
         type: String,
         unique: true,
-        sparse: true
+        sparse: true 
     },
+
     mrp: {
         type: Number,
         required: true
     },
 
     size: String,
-
     unit: String,
-
     weight: Number,
 
     images: [
@@ -42,14 +40,4 @@ const variantSchema = new mongoose.Schema({
 
 }, { timestamps: true });
 
-variantSchema.index({ productId: 1 }); // Speeds up fetching variants for a product
-
-const Variant = mongoose.model("Variant", variantSchema);
-
-export default Variant;
-
-
-
-
-
-
+variantSchema.index({ productId: 1 });

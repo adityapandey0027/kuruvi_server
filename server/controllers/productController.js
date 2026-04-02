@@ -7,163 +7,203 @@ import connection from "../config/redis.js";
 import Inventory from "../models/inventoryModel.js";
 import uploadToS3, { deleteFromS3 } from "../services/s3Services.js";
 
-
 export const createProduct = asyncHandler(async (req, res, next) => {
-    const { name, brand, categoryId, description, tags, variantsMetadata } = req.body;
-    const variants = JSON.parse(variantsMetadata);
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    if (!name || !categoryId || !variants || variants.length === 0) {
-        return next(new errorHandler("Product info and variants are required", 400));
-    }
+    try {
+        const { name, brand, categoryId, description, tags, variantsMetadata } = req.body;
+        const variants = JSON.parse(variantsMetadata);
 
-    const product = await Product.create({
-        name,
-        brand,
-        categoryId,
-        description,
-        tags: tags ? tags.split(',').map(t => t.trim()) : []
-    });
-
-    const variantDocs = [];
-
-    for (let i = 0; i < variants.length; i++) {
-        const v = variants[i];
-        let uploadedUrls = [];
-
-        const variantFiles = req.files.filter(file => file.fieldname === `variant_images_${i}`);
-
-        if (variantFiles.length > 0) {
-            uploadedUrls = await Promise.all(
-                variantFiles.map(file => uploadToS3(file, 'variants'))
-            );
+        if (!name || !categoryId || !variants || variants.length === 0) {
+            await session.abortTransaction();
+            session.endSession();
+            return next(new errorHandler("Product info and variants are required", 400));
         }
 
-        variantDocs.push({
-            productId: product._id,
-            sku: v.sku,
-            barcode: v.barcode,
-            mrp: v.mrp,
-            size: v.size,
-            unit: v.unit,
-            weight: v.weight,
-            images: uploadedUrls // S3 URLs ka array
-        });
-    }
+        const product = await Product.create([{
+            name,
+            brand,
+            categoryId,
+            description,
+            tags: tags ? tags.split(',').map(t => t.trim()) : []
+        }], { session });
 
-    await Variant.insertMany(variantDocs);
+        const productId = product[0]._id;
 
-    res.status(201).json({
-        success: true,
-        message: "Product and all variants created successfully",
-        data: product
-    });
-});
+        const variantDocs = [];
 
+        for (let i = 0; i < variants.length; i++) {
+            const v = variants[i];
+            let uploadedUrls = [];
 
-export const editProduct = asyncHandler(async (req, res, next) => {
-    const productId = req.params.id;
-    const { name, brand, categoryId, description, tags, variantsMetadata, deletedVariantIds } = req.body;
-
-    const variants = JSON.parse(variantsMetadata || "[]");
-    const deletedIds = deletedVariantIds ? JSON.parse(deletedVariantIds) : [];
-
-    const product = await Product.findById(productId);
-
-    if (!product) {
-        return next(new errorHandler("Product not found", 404));
-    }
-
-    // =========================
-    // 🧾 Update product fields
-    // =========================
-    product.name = name ?? product.name;
-    product.brand = brand ?? product.brand;
-    product.categoryId = categoryId ?? product.categoryId;
-    product.description = description ?? product.description;
-    product.tags = tags ? tags.split(',').map(t => t.trim()) : product.tags;
-
-    await product.save();
-
-    // =========================
-    // 🗑️ Delete removed variants
-    // =========================
-    if (deletedIds.length > 0) {
-        const variantsToDelete = await Variant.find({ _id: { $in: deletedIds } });
-
-        // delete images from S3
-        const imageKeys = variantsToDelete.flatMap(v =>
-            (v.images || []).map(img => img.key)
-        );
-
-        await Promise.all(imageKeys.map(key => deleteFromS3(key)));
-
-        await Variant.deleteMany({ _id: { $in: deletedIds } });
-    }
-
-    // =========================
-    // 🔁 Add / Update variants
-    // =========================
-    for (let i = 0; i < variants.length; i++) {
-        const v = variants[i];
-
-        let uploadedImages = [];
-
-        const variantFiles = req.files?.filter(
-            file => file.fieldname === `variant_images_${i}`
-        ) || [];
-
-        if (variantFiles.length > 0) {
-            uploadedImages = await Promise.all(
-                variantFiles.map(file => uploadToS3(file, 'variants'))
+            const variantFiles = req.files.filter(
+                file => file.fieldname === `variant_images_${i}`
             );
-        }
 
-        // 🔄 UPDATE existing variant
-        if (v._id) {
-            const existingVariant = await Variant.findById(v._id);
-
-            if (!existingVariant) continue;
-
-            // delete old images if new uploaded
-            if (uploadedImages.length > 0) {
-                const oldKeys = (existingVariant.images || []).map(img => img.key);
-                await Promise.all(oldKeys.map(key => deleteFromS3(key)));
+            if (variantFiles.length > 0) {
+                uploadedUrls = await Promise.all(
+                    variantFiles.map(file => uploadToS3(file, 'variants'))
+                );
             }
 
-            existingVariant.sku = v.sku ?? existingVariant.sku;
-            existingVariant.barcode = v.barcode ?? existingVariant.barcode;
-            existingVariant.mrp = v.mrp ?? existingVariant.mrp;
-            existingVariant.size = v.size ?? existingVariant.size;
-            existingVariant.unit = v.unit ?? existingVariant.unit;
-            existingVariant.weight = v.weight ?? existingVariant.weight;
-
-            if (uploadedImages.length > 0) {
-                existingVariant.images = uploadedImages;
-            }
-
-            await existingVariant.save();
-        }
-
-        // ➕ CREATE new variant
-        else {
-            await Variant.create({
+            variantDocs.push({
                 productId,
-                sku: v.sku,
-                barcode: v.barcode,
+                sku: v.sku || undefined,      
+                barcode: v.barcode || undefined, 
                 mrp: v.mrp,
                 size: v.size,
                 unit: v.unit,
                 weight: v.weight,
-                images: uploadedImages
+                images: uploadedUrls
             });
         }
-    }
 
-    res.status(200).json({
-        success: true,
-        message: "Product updated successfully"
-    });
+        await Variant.insertMany(variantDocs, { session });
+
+        await session.commitTransaction();
+        session.endSession();
+
+        res.status(201).json({
+            success: true,
+            message: "Product and all variants created successfully",
+            data: product[0]
+        });
+
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+
+        return next(error);
+    }
 });
+
+export const editProduct = asyncHandler(async (req, res, next) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const productId = req.params.id;
+        const {
+            name,
+            brand,
+            categoryId,
+            description,
+            tags,
+            variantsMetadata,
+            deletedVariantIds
+        } = req.body;
+
+        const variants = JSON.parse(variantsMetadata || "[]");
+        const deletedIds = deletedVariantIds ? JSON.parse(deletedVariantIds) : [];
+
+        const product = await Product.findById(productId).session(session);
+
+        if (!product) {
+            await session.abortTransaction();
+            session.endSession();
+            return next(new errorHandler("Product not found", 404));
+        }
+
+        // =========================
+        // 🧾 Update product fields
+        // =========================
+        product.name = name ?? product.name;
+        product.brand = brand ?? product.brand;
+        product.categoryId = categoryId ?? product.categoryId;
+        product.description = description ?? product.description;
+        product.tags = tags
+            ? tags.split(',').map(t => t.trim())
+            : product.tags;
+
+        await product.save({ session });
+
+     
+        if (deletedIds.length > 0) {
+            const variantsToDelete = await Variant.find({
+                _id: { $in: deletedIds }
+            }).session(session);
+
+            const imageKeys = variantsToDelete.flatMap(v =>
+                (v.images || []).map(img => img.key)
+            );
+
+            await Promise.all(imageKeys.map(key => deleteFromS3(key)));
+
+            await Variant.deleteMany(
+                { _id: { $in: deletedIds } },
+                { session }
+            );
+        }
+
+        for (let i = 0; i < variants.length; i++) {
+            const v = variants[i];
+
+            let uploadedImages = [];
+
+            const variantFiles = req.files?.filter(
+                file => file.fieldname === `variant_images_${i}`
+            ) || [];
+
+            if (variantFiles.length > 0) {
+                uploadedImages = await Promise.all(
+                    variantFiles.map(file => uploadToS3(file, 'variants'))
+                );
+            }
+
+            // 🔄 UPDATE existing
+            if (v._id) {
+                const existingVariant = await Variant.findById(v._id).session(session);
+                if (!existingVariant) continue;
+
+                // delete old images if new uploaded
+                if (uploadedImages.length > 0) {
+                    const oldKeys = (existingVariant.images || []).map(img => img.key);
+                    await Promise.all(oldKeys.map(key => deleteFromS3(key)));
+                    existingVariant.images = uploadedImages;
+                }
+
+                existingVariant.sku = v.sku || undefined;
+                existingVariant.barcode = v.barcode || undefined;
+                existingVariant.mrp = v.mrp ?? existingVariant.mrp;
+                existingVariant.size = v.size ?? existingVariant.size;
+                existingVariant.unit = v.unit ?? existingVariant.unit;
+                existingVariant.weight = v.weight ?? existingVariant.weight;
+
+                await existingVariant.save({ session });
+            }
+
+            // ➕ CREATE new
+            else {
+                await Variant.create([{
+                    productId,
+                    sku: v.sku || undefined,
+                    barcode: v.barcode || undefined,
+                    mrp: v.mrp,
+                    size: v.size,
+                    unit: v.unit,
+                    weight: v.weight,
+                    images: uploadedImages
+                }], { session });
+            }
+        }
+
+        // ✅ commit
+        await session.commitTransaction();
+        session.endSession();
+
+        res.status(200).json({
+            success: true,
+            message: "Product updated successfully"
+        });
+
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+        return next(error);
+    }
+});
+
 
 export const deleteProduct = asyncHandler(async (req, res, next) => {
     const productId = req.params.id;
@@ -171,23 +211,24 @@ export const deleteProduct = asyncHandler(async (req, res, next) => {
     const session = await mongoose.startSession();
     session.startTransaction();
 
+    let imageKeysToDelete = [];
+
     try {
-        // 1️⃣ Check product
+
         const product = await Product.findById(productId).session(session);
         if (!product) {
-            throw new Error("Product not found");
+            await session.abortTransaction();
+            session.endSession();
+            return next(new errorHandler("Product not found", 404));
         }
 
-        // 2️⃣ Get all variants
+
         const variants = await Variant.find({ productId })
             .select("_id images")
             .session(session);
 
         const variantIds = variants.map(v => v._id);
 
-        // ===========================
-        // 🧹 Collect S3 image keys
-        // ===========================
         const imageKeys = [];
 
         variants.forEach(v => {
@@ -196,44 +237,35 @@ export const deleteProduct = asyncHandler(async (req, res, next) => {
             });
         });
 
-        const uniqueKeys = [...new Set(imageKeys)];
+        imageKeysToDelete = [...new Set(imageKeys)];
 
-        // ===========================
-        // 🗑️ Delete from S3
-        // ===========================
-        try {
-            await Promise.all(uniqueKeys.map(key => deleteFromS3(key)));
-        } catch (err) {
-            console.error("S3 delete error:", err);
-            // optional: don't fail transaction
-        }
 
-        // ===========================
-        // 🧾 Delete inventory (if exists)
-        // ===========================
         await Inventory.deleteMany({
             variantId: { $in: variantIds }
         }).session(session);
 
-        // ===========================
-        // 🗑️ Delete variants
-        // ===========================
-        await Variant.deleteMany({
-            productId
-        }).session(session);
+        await Variant.deleteMany({ productId }).session(session);
 
-        // ===========================
-        // 🗑️ Delete product
-        // ===========================
+
         await Product.findByIdAndDelete(productId).session(session);
 
-        // ✅ Commit
+        // ✅ Commit DB first
         await session.commitTransaction();
         session.endSession();
 
+
+        try {
+            await Promise.all(
+                imageKeysToDelete.map(key => deleteFromS3(key))
+            );
+        } catch (err) {
+            console.error("S3 delete failed:", err);
+            // optional: log to queue / retry system
+        }
+
         res.status(200).json({
             success: true,
-            message: "Product, variants, and images deleted successfully"
+            message: "Product and related data deleted successfully"
         });
 
     } catch (error) {
