@@ -1,11 +1,15 @@
 import express from 'express';
 import { isAdmin, isAuth } from '../middlewares/isAuthMiddleware.js';
-import { createProduct, createVariant, getProducts, getProductById, getProductWithVariantById, getAllProducts, getVarauriantsBySearch, editProduct, deleteProduct } from '../controllers/productController.js';
+import { createProduct, createVariant, getProducts, getProductById, getProductWithVariantById, getAllProducts, getVarauriantsBySearch, editProduct, deleteProduct, getAllProductInApp } from '../controllers/productController.js';
 import upload from '../middlewares/uploadMiddleware.js';
 
 const productRoutes = express.Router();
 
-productRoutes.post("/variant", isAuth,upload.array('image', 6), createVariant);
+// app routes
+productRoutes.get("/:storeId/view-products", getAllProductInApp);
+
+
+productRoutes.post("/variant", isAuth, upload.array('image', 6), createVariant);
 
 productRoutes.get("/product-variant/:id", getProductWithVariantById);
 
@@ -20,5 +24,7 @@ productRoutes.get("/:id", getProductById);
 productRoutes.post("/", upload.any(), createProduct);
 
 productRoutes.delete("/:id", isAdmin, deleteProduct);
-productRoutes.put("/:id", isAdmin,upload.any(), editProduct);
+productRoutes.put("/:id", isAdmin, upload.any(), editProduct);
 export default productRoutes;
+
+

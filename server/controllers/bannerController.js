@@ -1,4 +1,3 @@
-import Admin from "../models/adminModel.js";
 import { errorHandler } from "../utilities/errorHandler.utils.js";
 import { asyncHandler } from "../utilities/asyncHandler.utils.js";
 import HomeFirstBanner from "../models/bannerModel.js";
@@ -14,6 +13,17 @@ export const getFirstHomeBanners = asyncHandler(async (req, res, next) => {
     });
 });
 
+export const getFirstHomeBannersViaWeb = asyncHandler(async (req, res, next) => {
+    const banners = await HomeFirstBanner.find({}).lean();
+
+    res.status(200).json({
+        success: true,
+        data: banners
+    });
+});
+
+
+
 export const createHomeFirstBanner = asyncHandler(async (req, res, next) => {
     const { title } = req.body;
     if (!req.file) {
@@ -27,7 +37,7 @@ export const createHomeFirstBanner = asyncHandler(async (req, res, next) => {
     });
 
     res.status(201).json({
-        message : "Banner created successfully",
+        message: "Banner created successfully",
         success: true,
         data: banner
     });
@@ -61,7 +71,7 @@ export const updateHomeFirstBanner = asyncHandler(async (req, res, next) => {
     await banner.save();
 
     res.status(200).json({
-        message : "Banner updated successfully",
+        message: "Banner updated successfully",
         success: true,
         data: banner
     });
@@ -90,10 +100,10 @@ export const deleteHomeFirstBanner = asyncHandler(async (req, res, next) => {
 
 export const toggleHomeFirstBannerStatus = asyncHandler(async (req, res, next) => {
     const bannerId = req.params.id;
-    
+
     const banner = await HomeFirstBanner.findById(bannerId);
 
-    if(!banner) {
+    if (!banner) {
         return next(new errorHandler("Banner not found", 404));
     }
 
@@ -101,7 +111,7 @@ export const toggleHomeFirstBannerStatus = asyncHandler(async (req, res, next) =
     await banner.save();
 
     res.status(200).json({
-        message : "Status changed successfully",
+        message: "Status changed successfully",
         success: true,
         data: banner
     });

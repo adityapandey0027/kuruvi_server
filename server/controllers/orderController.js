@@ -6,13 +6,13 @@ import { asyncHandler } from "../utilities/asyncHandler.utils.js";
 import mongoose from "mongoose";
 import Variant from "../models/variantModel.js";
 import Razorpay from "razorpay";
+import crypto from "crypto";
 
 
 const razorpay = new Razorpay({
     key_id: process.env.RAZORPAY_KEY_ID,
     key_secret: process.env.RAZORPAY_KEY_SECRET
 }); 
-
 
 export const createOrder = asyncHandler(async (req, res, next) => {
     const { storeId, items, addressId, deliveryFee = 0, paymentOption } = req.body;
@@ -29,45 +29,49 @@ export const createOrder = asyncHandler(async (req, res, next) => {
         let itemTotal = 0;
         const orderItemsData = [];
 
-        // Process each item
         for (const item of items) {
-            // 1. Check inventory
+
+            // Fetch inventory (single source of truth)
             const inventory = await Inventory.findOne({
                 storeId,
-                variantId: item.variantId
+                variantId: item.variantId,
+                isAvailable: true
             }).session(session);
 
-            if (!inventory || inventory.stock < item.quantity) {
-                throw new Error("Insufficient stock for one or more items");
+            if (!inventory) {
+                throw new Error("Product not available");
             }
 
+            if (inventory.stock < item.quantity) {
+                throw new Error("Insufficient stock");
+            }
+
+            // Get variant (for mrp / info only)
             const variant = await Variant.findById(item.variantId).session(session);
 
             if (!variant) {
                 throw new Error("Invalid product variant");
             }
 
-            const price = variant.price;
+            // Correct price source
+            const price = inventory.price;
+            const mrp = variant.mrp || price;
 
-            // 3. Reduce stock
             inventory.stock -= item.quantity;
             await inventory.save({ session });
 
-            // 4. Calculate total
             itemTotal += price * item.quantity;
 
-            // 5. Prepare order items
             orderItemsData.push({
                 variantId: item.variantId,
                 quantity: item.quantity,
-                price
+                price,
+                mrp
             });
         }
 
-        // 6. Final total calculation
         const totalAmount = itemTotal + deliveryFee;
 
-        // 7. Create Order
         const orderId = `KUR-${Date.now().toString().slice(-6)}`;
 
         const order = await Order.create([{
@@ -80,21 +84,18 @@ export const createOrder = asyncHandler(async (req, res, next) => {
             totalAmount,
             paymentOption,
             status: "PLACED",
-            paymentStatus: paymentOption === "COD" ? "PENDING" : "PENDING"
+            paymentStatus: "PENDING"
         }], { session });
 
         const newOrder = order[0];
 
-        // 8. Attach orderId to items
         const finalOrderItems = orderItemsData.map(item => ({
             ...item,
             orderId: newOrder._id
         }));
 
-        // 9. Save order items
         await OrderItem.insertMany(finalOrderItems, { session });
 
-        //Commit transaction
         await session.commitTransaction();
         session.endSession();
 
@@ -114,6 +115,7 @@ export const createOrder = asyncHandler(async (req, res, next) => {
 
 export const createRazorpayOrder = asyncHandler(async (req, res, next) => {
     const { orderId } = req.params;
+    const userId = req.user._id;
 
     const order = await Order.findOne({ orderId });
 
@@ -121,12 +123,37 @@ export const createRazorpayOrder = asyncHandler(async (req, res, next) => {
         return next(new errorHandler("Order not found", 404));
     }
 
+    if (order.userId.toString() !== userId.toString()) {
+        return next(new errorHandler("Unauthorized access to order", 403));
+    }
+
+    if (["CANCELLED", "DELIVERED"].includes(order.status)) {
+        return next(new errorHandler("Cannot create payment for this order", 400));
+    }
+
     if (order.paymentOption !== "ONLINE") {
         return next(new errorHandler("Payment option is not ONLINE", 400));
     }
 
     if (order.paymentStatus === "SUCCESS") {
-        return next(new errorHandler("Order is already paid", 400));
+        return res.status(200).json({
+            success: true,
+            message: "Order already paid",
+            order: {
+                id: order.razorpayOrderId,
+                amount: Math.round(order.totalAmount * 100),
+                currency: "INR",
+                receipt: order.orderId
+            }
+        });
+    }
+
+    const createdAt = new Date(order.createdAt);
+    const now = new Date();
+    const diffMinutes = (now - createdAt) / (1000 * 60);
+
+    if (diffMinutes > 30) {
+        return next(new errorHandler("Order payment expired. Please place a new order.", 400));
     }
 
     if (order.razorpayOrderId) {
@@ -148,7 +175,11 @@ export const createRazorpayOrder = asyncHandler(async (req, res, next) => {
         const razorpayOrder = await razorpay.orders.create({
             amount: amountInPaise,
             currency: "INR",
-            receipt: order.orderId
+            receipt: order.orderId,
+            notes: {
+                internalOrderId: order._id.toString(),
+                userId: userId.toString()
+            }
         });
 
         order.razorpayOrderId = razorpayOrder.id;
@@ -166,69 +197,118 @@ export const createRazorpayOrder = asyncHandler(async (req, res, next) => {
         });
 
     } catch (error) {
+        console.error("Razorpay Error:", error); 
+
         return next(new errorHandler("Failed to create Razorpay order", 500));
     }
 });
 
-export const updateOrderPaymentStatus = asyncHandler(async (req, res, next) =>{
+export const updateOrderPaymentStatus = asyncHandler(async (req, res, next) => {
     const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
+
+    if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+        return next(new errorHandler("Missing payment details", 400));
+    }
 
     const order = await Order.findOne({ razorpayOrderId });
 
     if (!order) {
         return next(new errorHandler("Order not found", 404));
-    }   
+    }
 
-    const generatedSignature = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-        .update(razorpayOrderId + "|" + razorpayPaymentId)
-        .digest('hex');
+    if (order.paymentStatus === "SUCCESS") {
+        return res.status(200).json({
+            success: true,
+            message: "Payment already verified"
+        });
+    }
+
+    const generatedSignature = crypto
+        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+        .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+        .digest("hex");
 
     if (generatedSignature !== razorpaySignature) {
         return next(new errorHandler("Invalid payment signature", 400));
     }
 
     order.paymentStatus = "SUCCESS";
+    order.status = "CONFIRMED";
+
+    order.razorpayPaymentId = razorpayPaymentId;
+    order.razorpaySignature = razorpaySignature;
+
     await order.save();
 
     res.status(200).json({
         success: true,
-        message: "Payment verified and order updated successfully"
-    }); 
-})
+        message: "Payment verified and order confirmed"
+    });
+});
 
 // @route   GET /api/orders/inhouse
 export const getInhouseOrders = asyncHandler(async (req, res, next) => {
-    let { page = 1, limit = 10, status, storeId } = req.query;
+    let {
+        page = 1,
+        limit = 10,
+        status,
+        storeId,
+        search,
+        startDate,
+        endDate,
+        sort = "latest"
+    } = req.query;
 
     page = parseInt(page);
     limit = parseInt(limit);
 
     const skip = (page - 1) * limit;
 
-    // 🔍 Build filter
     const filter = {};
 
+    // Status filter
     if (status) filter.status = status;
-    if (storeId) filter.storeId = storeId;
 
-    // ⚡ Query (minimal fields for performance)
+    // Store filter
+    if (storeId) {
+        filter.storeId = new mongoose.Types.ObjectId(storeId);
+    }
+
+    // Date filter
+    if (startDate || endDate) {
+        filter.createdAt = {};
+        if (startDate) filter.createdAt.$gte = new Date(startDate);
+        if (endDate) filter.createdAt.$lte = new Date(endDate);
+    }
+
+    // Search (orderId)
+    if (search) {
+        filter.orderId = { $regex: search, $options: "i" };
+    }
+
+    // Sorting
+    let sortOption = { createdAt: -1 }; // default latest
+    if (sort === "oldest") sortOption = { createdAt: 1 };
+    if (sort === "amount_desc") sortOption = { totalAmount: -1 };
+    if (sort === "amount_asc") sortOption = { totalAmount: 1 };
+
     const orders = await Order.find(filter)
-        .select("orderId userId status totalAmount createdAt")
-        .populate("userId", "name")
-        .sort({ createdAt: -1 })
+        .select("orderId userId status totalAmount createdAt paymentStatus")
+        .populate("userId", "name phone")
+        .sort(sortOption)
         .skip(skip)
         .limit(limit)
         .lean();
 
-    // 📊 Total count for pagination
     const total = await Order.countDocuments(filter);
 
-    // 🧾 Format response
     const formattedOrders = orders.map(o => ({
         _id: o._id,
         orderId: o.orderId,
         customer: o.userId?.name || "Guest",
+        phone: o.userId?.phone || null,
         status: o.status,
+        paymentStatus: o.paymentStatus,
         amount: o.totalAmount,
         date: o.createdAt
     }));
@@ -245,13 +325,13 @@ export const getInhouseOrders = asyncHandler(async (req, res, next) => {
     });
 });
 
-// @desc    Get detailed view for a single order
+// @desc   
 export const getOrderDetail = asyncHandler(async (req, res, next) => {
     const order = await Order.findById(req.params.id)
         .populate("userId", "name phone email")
         .populate("storeId", "name city")
         .populate("riderId", "name phone")
-        .populate("address", "text lat lng")
+        .populate("addressId", "text lat lng")
         .lean();
 
     if (!order) {
@@ -261,39 +341,85 @@ export const getOrderDetail = asyncHandler(async (req, res, next) => {
     const items = await OrderItem.find({ orderId: order._id })
         .populate({
             path: "variantId",
-            populate: { path: "productId", select: "name" }
+            populate: { path: "productId", select: "name brand" }
         })
         .lean();
+
+    let totalItems = 0;
+
+    const formattedItems = items.map(item => {
+        const product = item?.variantId?.productId;
+        const variant = item?.variantId;
+
+        const quantity = item.quantity;
+        const price = item.price;
+
+        totalItems += quantity;
+
+        return {
+            variantId: item.variantId?._id || null,
+            name: product?.name || "Product",
+            brand: product?.brand || "",
+            price,
+            mrp: item.mrp || price,
+            quantity,
+            subtotal: price * quantity,
+            size: variant?.size || "standard",
+            unit: variant?.unit || "",
+            image: variant?.images?.[0]?.url || null,
+
+            // 🔥 Safety
+            isAvailable: !!variant
+        };
+    });
 
     res.status(200).json({
         success: true,
         data: {
-            id: order.orderId,
-            user_name: order.userId?.name,
-            phone: order.userId?.phone,
-            email: order.userId?.email,
-            created_date: order.createdAt,
-            total: order.totalAmount,
-            payment_option: order.paymentOption,
-            delivery_status: order.status,
-            address: order.address?.text || null,
-            drop_lat: order.address?.lat || null,
-            drop_lng: order.address?.lng || null,
-            warehouse_name: order.storeId?.name,
-            rider_name: order.riderId?.name || null,
-            rider_phone: order.riderId?.phone || null,
+            orderId: order.orderId,
+            createdAt: order.createdAt,
 
-            items: items.map(item => {
-                const productName = item?.variantId?.productId?.name || "Product";
+            customer: {
+                name: order.userId?.name,
+                phone: order.userId?.phone,
+                email: order.userId?.email
+            },
 
-                return {
-                    pname: productName,
-                    product_price: item.price,
-                    product_quantity: item.quantity,
-                    subtotal: item.price * item.quantity,
-                    pack_size: item.variantId?.size || "standard"
-                };
-            })
+            store: {
+                name: order.storeId?.name,
+                city: order.storeId?.city
+            },
+
+            rider: {
+                name: order.riderId?.name || null,
+                phone: order.riderId?.phone || null
+            },
+
+            address: {
+                text: order.addressId?.text || null,
+                lat: order.addressId?.lat || null,
+                lng: order.addressId?.lng || null
+            },
+
+            pricing: {
+                itemTotal: order.itemTotal,
+                deliveryFee: order.deliveryFee,
+                discount: order.discount || 0,
+                totalAmount: order.totalAmount
+            },
+
+            status: {
+                orderStatus: order.status,
+                paymentStatus: order.paymentStatus,
+                paymentOption: order.paymentOption
+            },
+
+            summary: {
+                totalItems
+            },
+
+            items: formattedItems
         }
     });
 });
+

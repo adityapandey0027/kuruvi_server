@@ -588,3 +588,161 @@ export const getVarauriantsBySearch = asyncHandler(async (req, res, next) => {
         data: result
     });
 });
+
+export const getAllProductInApp = asyncHandler(async (req, res, next) => {
+    const {
+        page = 1,
+        limit = 10,
+        search,
+        categoryId,
+        sort,
+        minPrice,
+        maxPrice,
+        brand,
+        inStock
+    } = req.query;
+
+    const { storeId } = req.params;
+    const skip = (page - 1) * limit;
+
+    // 🔥 Dynamic sort
+    let sortOption = { price: 1 };
+    if (sort === "price_desc") sortOption = { price: -1 };
+    if (sort === "newest") sortOption = { "product.createdAt": -1 };
+
+    const pipeline = [
+        {
+            $match: {
+                storeId: new mongoose.Types.ObjectId(storeId),
+                isAvailable: true,
+                ...(inStock === "true" ? { stock: { $gt: 0 } } : {})
+            }
+        },
+
+        // 🔗 Variant
+        {
+            $lookup: {
+                from: "variants",
+                localField: "variantId",
+                foreignField: "_id",
+                as: "variant"
+            }
+        },
+        { $unwind: "$variant" },
+
+        // 🔗 Product
+        {
+            $lookup: {
+                from: "products",
+                localField: "variant.productId",
+                foreignField: "_id",
+                as: "product"
+            }
+        },
+        { $unwind: "$product" },
+
+        // 🔍 Search (TEXT + fallback)
+        ...(search
+            ? [
+                  {
+                      $match: {
+                          $or: [
+                              { $text: { $search: search } }, // fast search
+                              { "product.name": { $regex: search, $options: "i" } },
+                              { "product.brand": { $regex: search, $options: "i" } },
+                              { "variant.size": { $regex: search, $options: "i" } },
+                              { "variant.unit": { $regex: search, $options: "i" } }
+                          ]
+                      }
+                  }
+              ]
+            : []),
+
+        // 🗂 Category
+        ...(categoryId
+            ? [
+                  {
+                      $match: {
+                          "product.categoryId": new mongoose.Types.ObjectId(categoryId)
+                      }
+                  }
+              ]
+            : []),
+
+        // 🏷 Brand
+        ...(brand
+            ? [
+                  {
+                      $match: {
+                          "product.brand": { $regex: brand, $options: "i" }
+                      }
+                  }
+              ]
+            : []),
+
+        // 💰 Price range
+        ...(minPrice || maxPrice
+            ? [
+                  {
+                      $match: {
+                          price: {
+                              ...(minPrice ? { $gte: Number(minPrice) } : {}),
+                              ...(maxPrice ? { $lte: Number(maxPrice) } : {})
+                          }
+                      }
+                  }
+              ]
+            : []),
+
+        // 🔥 Sort before grouping
+        { $sort: sortOption },
+
+        {
+            $group: {
+                _id: "$product._id",
+                doc: { $first: "$$ROOT" }
+            }
+        },
+        { $replaceRoot: { newRoot: "$doc" } },
+
+        {
+            $facet: {
+                data: [
+                    { $skip: Number(skip) },
+                    { $limit: Number(limit) },
+                    {
+                        $project: {
+                            _id: 0,
+                            productId: "$product._id",
+                            name: "$product.name",
+                            brand: "$product.brand",
+                            description: "$product.description",
+                            categoryId: "$product.categoryId",
+                            price: "$price",
+                            mrp: "$variant.mrp",
+                            size: "$variant.size",
+                            unit: "$variant.unit",
+                            stock: 1,
+                            image: { $arrayElemAt: ["$variant.images.url", 0] }
+                        }
+                    }
+                ],
+                totalCount: [{ $count: "total" }]
+            }
+        }
+    ];
+
+    const result = await Inventory.aggregate(pipeline);
+
+    const products = result[0].data;
+    const total = result[0].totalCount[0]?.total || 0;
+
+    res.status(200).json({
+        success: true,
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        count: products.length,
+        data: products
+    });
+});

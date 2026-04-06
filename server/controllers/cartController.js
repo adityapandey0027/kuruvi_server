@@ -12,47 +12,124 @@ export const getCartItem = asyncHandler(async (req, res, next) => {
     if (!cart || cart.items.length === 0) {
         return res.status(200).json({
             success: true,
-            data: []
+            data: [],
+            summary: {
+                totalItems: 0,
+                subtotal: 0,
+                totalMRP: 0,
+                totalDiscount: 0
+            }
         });
     }
 
-    const variantIds = cart.items.map(item => item.variantId);
+    const variantIds = cart.items.map(i => i.variantId);
 
-    const inventories = await Inventory.find({
-        storeId: cart.storeId,
-        variantId: { $in: variantIds }
-    }).lean();
+    const data = await Inventory.aggregate([
+        {
+            $match: {
+                storeId: cart.storeId,
+                variantId: { $in: variantIds }
+            }
+        },
+        {
+            $lookup: {
+                from: "variants",
+                localField: "variantId",
+                foreignField: "_id",
+                as: "variant"
+            }
+        },
+        { $unwind: "$variant" },
 
-    const inventoryMap = {};
-    inventories.forEach(inv => {
-        inventoryMap[inv.variantId.toString()] = inv;
+        {
+            $lookup: {
+                from: "products",
+                localField: "variant.productId",
+                foreignField: "_id",
+                as: "product"
+            }
+        },
+        { $unwind: "$product" }
+    ]);
+
+    const map = {};
+    data.forEach(d => {
+        map[d.variantId.toString()] = d;
     });
 
+    let totalItems = 0;
+    let subtotal = 0;
+    let totalMRP = 0;
+
     const result = cart.items.map(item => {
-        const inv = inventoryMap[item.variantId.toString()];
+        const d = map[item.variantId.toString()];
+        if (!d) {
+            return {
+                variantId: item.variantId,
+                quantity: item.quantity,
+                isAvailable: false
+            };
+        }
+
+        const price = d.price;
+        const mrp = d.variant?.mrp || 0;
+        const quantity = item.quantity;
+
+        totalItems += quantity;
+        subtotal += price * quantity;
+        totalMRP += mrp * quantity;
 
         return {
             variantId: item.variantId,
-            quantity: item.quantity,
-            price: item.price,
-            stock: inv?.stock || 0,
-            inStock: inv?.stock >= item.quantity
+            quantity,
+            price,
+            mrp,
+            name: d.product?.name,
+            brand: d.product?.brand,
+            size: d.variant?.size,
+            unit: d.variant?.unit,
+            image: d.variant?.images?.[0]?.url,
+            stock: d.stock || 0,
+            inStock: d.stock >= quantity,
+
+            // Important flags
+            priceChanged: item.price !== price,
+            isAvailable: true
         };
     });
 
+    const totalDiscount = totalMRP - subtotal;
+
     res.status(200).json({
         success: true,
-        data: result
+        data: result,
+        summary: {
+            totalItems,
+            subtotal,
+            totalMRP,
+            totalDiscount
+        }
     });
 });
 
 export const addCartItem = asyncHandler(async (req, res, next) => {
     const userId = req.user._id;
-    const { storeId, variantId, quantity } = req.body;
+    const { storeId, variantId } = req.body;
 
-    const variant = await Variant.findById(variantId);
-    if (!variant) {
-        return next(new errorHandler("Invalid product", 400));
+    const quantity = 1;
+
+    const inventory = await Inventory.findOne({
+        storeId,
+        variantId,
+        isAvailable: true
+    });
+
+    if (!inventory) {
+        return next(new errorHandler("Product not available in this store", 400));
+    }
+
+    if (inventory.stock < 1) {
+        return next(new errorHandler("Out of stock", 400));
     }
 
     let cart = await Cart.findOne({ userId });
@@ -63,27 +140,34 @@ export const addCartItem = asyncHandler(async (req, res, next) => {
             storeId,
             items: [{
                 variantId,
-                quantity,
-                price: variant.price
+                quantity: 1,
+                price: inventory.price
             }]
         });
     } else {
-       
+
+        // Prevent multi-store cart
         if (cart.storeId.toString() !== storeId) {
             return next(new errorHandler("Cart contains items from another store", 400));
         }
 
-        const itemIndex = cart.items.findIndex(
+        const index = cart.items.findIndex(
             item => item.variantId.toString() === variantId
         );
 
-        if (itemIndex > -1) {
-            cart.items[itemIndex].quantity += quantity;
+        if (index > -1) {
+            const newQty = cart.items[index].quantity + 1;
+
+            if (newQty > inventory.stock) {
+                return next(new errorHandler("Exceeds available stock", 400));
+            }
+
+            cart.items[index].quantity = newQty;
         } else {
             cart.items.push({
                 variantId,
-                quantity,
-                price: variant.price
+                quantity: 1,
+                price: inventory.price
             });
         }
 
@@ -96,9 +180,67 @@ export const addCartItem = asyncHandler(async (req, res, next) => {
     });
 });
 
+export const updateCartItem = asyncHandler(async (req, res, next) => {
+    const userId = req.user._id;
+    const { variantId } = req.params;
+    const { action } = req.body;
+
+    if (!["increment", "decrement"].includes(action)) {
+        return next(new errorHandler("Invalid action", 400));
+    }
+
+    const cart = await Cart.findOne({ userId });
+
+    if (!cart) {
+        return next(new errorHandler("Cart not found", 404));
+    }
+
+    const itemIndex = cart.items.findIndex(
+        item => item.variantId.toString() === variantId
+    );
+
+    if (itemIndex === -1) {
+        return next(new errorHandler("Item not in cart", 404));
+    }
+
+    const item = cart.items[itemIndex];
+
+    const inventory = await Inventory.findOne({
+        storeId: cart.storeId,
+        variantId,
+        isAvailable: true
+    });
+
+    if (!inventory) {
+        return next(new errorHandler("Product not available", 400));
+    }
+
+    if (action === "increment") {
+        if (item.quantity + 1 > inventory.stock) {
+            return next(new errorHandler("Exceeds available stock", 400));
+        }
+        item.quantity += 1;
+    }
+
+    if (action === "decrement") {
+        item.quantity -= 1;
+
+        if (item.quantity <= 0) {
+            cart.items.splice(itemIndex, 1);
+        }
+    }
+
+    await cart.save();
+
+    res.status(200).json({
+        success: true,
+        data: cart
+    });
+});
+
 export const removeCartItem = asyncHandler(async (req, res, next) => {
     const userId = req.user._id;
-    const { variantId } = req.body;
+    const { variantId } = req.params;
 
     const cart = await Cart.findOne({ userId });
 
@@ -117,7 +259,6 @@ export const removeCartItem = asyncHandler(async (req, res, next) => {
         data: cart
     });
 });
-
 
 export const clearCart = asyncHandler(async (req, res, next) => {
     const userId = req.user._id;
