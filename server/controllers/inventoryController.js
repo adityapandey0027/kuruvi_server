@@ -206,7 +206,7 @@ export const getStoreProductDetailsById = asyncHandler(async (req, res, next) =>
 
 export const createInventory = asyncHandler(async (req, res, next) => {
   const {
-    storeId,
+    
     variantId,
     price,
     stock = 0,
@@ -214,7 +214,7 @@ export const createInventory = asyncHandler(async (req, res, next) => {
     batchNumber,
     expiryDate
   } = req.body;
-
+  const storeId = req.body.storeId || req.user._id;
   if (!storeId || !variantId || price == null) {
     return next(new errorHandler("storeId, variantId, and price are required", 400));
   }

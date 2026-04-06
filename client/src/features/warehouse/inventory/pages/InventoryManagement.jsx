@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSelector } from 'react-redux';
 import { useParams, useNavigate } from 'react-router-dom'; 
 import { 
   Plus, Search, Boxes, Package, ChevronLeft, Save, 
@@ -18,7 +19,8 @@ function useDebounce(value, delay) {
 }
 
 const InventoryManagement = () => {
-  const { storeId } = useParams(); // URL context: /admin/inventory/:storeId
+  const {user} = useSelector(state => state.auth);
+  const storeId = user?._id; // URL context: /admin/inventory/:storeId
   const navigate = useNavigate();
   
   const [view, setView] = useState('list'); 
@@ -33,7 +35,7 @@ const InventoryManagement = () => {
     if (!storeId) return;
     try {
       setLoading(true);
-      const { data } = await API.get(`/inventory/store/${storeId}?q=${query}`);
+      const { data } = await API.get(`/inventories/${storeId}/products?q=${query}`);
       setInventory(data.data || []);
       if(data.store) setStoreDetails(data.store);
     } catch (err) {
