@@ -15,6 +15,7 @@ import adminRouter from './routes/adminRoutes.js';
 import orderRouter from './routes/orderRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import riderRouter from './routes/riderRoutes.js';
+import bannerRoute from './routes/bannerRoutes.js';
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -42,6 +43,7 @@ app.use("/v1/admin", adminRouter);
 app.use("/v1/orders", orderRouter);
 app.use("/v1/users", userRoutes);
 app.use("/v1/riders", riderRouter);
+app.use("/v1/banners", bannerRoute);
 
 app.get("/", (req, res) => {
   res.send("Server is running");
