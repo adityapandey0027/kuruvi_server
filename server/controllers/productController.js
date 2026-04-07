@@ -322,23 +322,27 @@ export const getAllProducts = asyncHandler(async (req, res, next) => {
         filter.name = { $regex: search, $options: "i" };
     }
 
-    // Pagination numbers ko integer mein convert karna zaroori hai
-    const skip = (Number(page) - 1) * Number(limit);
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
+    const skip = (pageNum - 1) * limitNum;
 
     const products = await Product.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(Number(limit))
+        .limit(limitNum)
         .populate('categoryId', 'name')
         .lean();
 
     const productIds = products.map(p => p._id);
-    const variants = await Variant.find({ productId: { $in: productIds } }).lean();
+
+    const variants = await Variant.find({
+        productId: { $in: productIds }
+    }).lean();
 
     const variantMap = {};
+
     variants.forEach(v => {
-        // Safe image processing
-        const processedImages = (v.images || []).map(img => 
+        const processedImages = (v.images || []).map(img =>
             (img && typeof img === 'object') ? img.url : img
         );
 
@@ -347,7 +351,10 @@ export const getAllProducts = asyncHandler(async (req, res, next) => {
             images: processedImages
         };
 
-        if (!variantMap[v.productId]) variantMap[v.productId] = [];
+        if (!variantMap[v.productId]) {
+            variantMap[v.productId] = [];
+        }
+
         variantMap[v.productId].push(variantWithCleanImages);
     });
 
@@ -362,7 +369,8 @@ export const getAllProducts = asyncHandler(async (req, res, next) => {
         success: true,
         count: result.length,
         total: totalProducts,
-        page: Number(page),
+        page: pageNum,
+        limit: limitNum,
         data: result
     });
 });

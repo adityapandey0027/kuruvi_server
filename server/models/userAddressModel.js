@@ -3,20 +3,25 @@ import mongoose from "mongoose";
 const userAddressSchema = new mongoose.Schema({
     userId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "User"
+        ref: "User",
+        required: true
     },
 
-    label: String,
+    label: {
+        type: String,
+        required: true
+    },
 
-    addressLine: String,
+    addressLine: {
+        type: String,
+        required: true
+    },
 
     city: String,
 
     pincode: String,
 
-    receiverPhone :{
-        type : Number
-    },
+    receiverPhone: Number,
 
     location: {
         type: {
@@ -24,18 +29,24 @@ const userAddressSchema = new mongoose.Schema({
             enum: ["Point"],
             default: "Point"
         },
-        coordinates: [Number]
+        coordinates: {
+            type: [Number], // [lng, lat]
+        }
     },
+
     isDefault: {
-        type: Boolean
+        type: Boolean,
+        default: false
     }
-},{
-    timestamps : true
+
+}, {
+    timestamps: true
 });
 
-userAddressSchema.index({location : "2dsphere"});
-userAddressSchema.index({ userId: 1 }); // Fetch addresses belonging to a user
+// Index for geo queries
+userAddressSchema.index({ location: "2dsphere" });
+userAddressSchema.index({ userId: 1 }); 
 
-const UserAddress = mongoose.model("UserAddress", userAddressSchema);
+export const UserAddress = mongoose.model("UserAddress", userAddressSchema);
 
 export default UserAddress;

@@ -12,7 +12,7 @@ import crypto from "crypto";
 const razorpay = new Razorpay({
     key_id: process.env.RAZORPAY_KEY_ID,
     key_secret: process.env.RAZORPAY_KEY_SECRET
-}); 
+});
 
 export const createOrder = asyncHandler(async (req, res, next) => {
     const { storeId, items, addressId, deliveryFee = 0, paymentOption } = req.body;
@@ -98,6 +98,20 @@ export const createOrder = asyncHandler(async (req, res, next) => {
 
         await session.commitTransaction();
         session.endSession();
+
+        if (paymentOption === "COD") {
+            const io = req.app.get("io");
+
+            io.to(`store_${storeId}`).emit("new_order", {
+                orderId: newOrder._id,
+                displayId: newOrder.orderId,
+                amount: totalAmount,
+                itemsCount: items.length,
+                status: newOrder.status,
+                paymentType: newOrder.paymentOption,
+                createdAt: newOrder.createdAt
+            });
+        }
 
         res.status(201).json({
             success: true,
@@ -197,7 +211,7 @@ export const createRazorpayOrder = asyncHandler(async (req, res, next) => {
         });
 
     } catch (error) {
-        console.error("Razorpay Error:", error); 
+        console.error("Razorpay Error:", error);
 
         return next(new errorHandler("Failed to create Razorpay order", 500));
     }
@@ -239,6 +253,18 @@ export const updateOrderPaymentStatus = asyncHandler(async (req, res, next) => {
     order.razorpaySignature = razorpaySignature;
 
     await order.save();
+
+    // emit
+    const io = req.app.get("io");
+
+    io.to(`store_${order.storeId}`).emit("new_order", {
+        orderId: order._id,
+        displayId: order.orderId,
+        amount: order.totalAmount,
+        status: order.status,
+        paymentType: order.paymentOption,
+        createdAt: order.createdAt
+    });
 
     res.status(200).json({
         success: true,

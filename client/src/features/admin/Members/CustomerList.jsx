@@ -1,9 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios'; 
-import { Eye, Search, UserMinus, Loader2, User } from 'lucide-react';
+import { Eye, Search, UserMinus, Loader2, User, ChevronLeft } from 'lucide-react';
 import { toast } from 'react-toastify';
 import API from '../../../api/axios';
+
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
 
 const CustomerList = () => {
   const navigate = useNavigate();
@@ -12,12 +21,29 @@ const CustomerList = () => {
   const [selectedIds, setSelectedIds] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const fetchCustomers = async () => {
+  // 1. Pagination State aligned with backend response
+  const [pagination, setPagination] = useState({
+    page: 1,
+    pages: 1,
+    total: 0,
+    limit: 10
+  });
+
+  const debouncedSearch = useDebounce(searchTerm, 500);
+
+  // 2. Updated Fetch logic to include page and search query
+  const fetchCustomers = async (page = 1, query = "") => {
     try {
       setLoading(true);
-      const response = await API.get('/admin/customers/all');
-      console.log(response.data)
+      // Controller expects 'page', 'limit', and 'q' for search
+      const response = await API.get(`/admin/customers/all?page=${page}&limit=${pagination.limit}&q=${query}`);
+      
       setCustomers(response.data.data || []);
+      
+      // Sync pagination metadata from server
+      if (response.data.pagination) {
+        setPagination(response.data.pagination);
+      }
     } catch (error) {
       toast.error("Failed to load customer data");
     } finally {
@@ -25,9 +51,16 @@ const CustomerList = () => {
     }
   };
 
+  // Re-fetch when debounced search term changes
   useEffect(() => {
-    fetchCustomers();
-  }, []);
+    fetchCustomers(1, debouncedSearch);
+  }, [debouncedSearch]);
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= pagination.pages) {
+      fetchCustomers(newPage, searchTerm);
+    }
+  };
 
   const handleDeleteSelected = async () => {
     if (selectedIds.length === 0) return toast.warn("Please select at least one row");
@@ -37,18 +70,12 @@ const CustomerList = () => {
         await axios.post('/api/customer/delete_all', { id: selectedIds });
         toast.success("Customers deleted successfully");
         setSelectedIds([]);
-        fetchCustomers();
+        fetchCustomers(pagination.page, searchTerm);
       } catch (error) {
         toast.error("An error occurred while deleting data");
       }
     }
   };
-
-  const filteredData = customers.filter(item => 
-    item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.mobile?.toString().includes(searchTerm) ||
-    item._id?.includes(searchTerm)
-  );
 
   if (loading) return (
     <div className="flex h-96 items-center justify-center">
@@ -77,6 +104,7 @@ const CustomerList = () => {
             type="text" 
             placeholder="Search by name, ID or mobile..." 
             className="flex-1 bg-transparent outline-none font-bold text-slate-700"
+            value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
@@ -89,20 +117,19 @@ const CustomerList = () => {
                   <input 
                     type="checkbox" 
                     className="accent-[#7e2827]"
-                    onChange={(e) => setSelectedIds(e.target.checked ? filteredData.map(c => c._id) : [])}
-                    checked={selectedIds.length === filteredData.length && filteredData.length > 0}
+                    onChange={(e) => setSelectedIds(e.target.checked ? customers.map(c => c._id) : [])}
+                    checked={selectedIds.length === customers.length && customers.length > 0}
                   />
                 </th>
                 <th className="p-6">User Profile</th>
                 <th className="p-6">Mobile Number</th>
-                {/* CHANGED: Name column instead of Role */}
                 <th className="p-6 text-center">Display Name</th>
                 <th className="p-6 text-center">Registration Date</th>
                 <th className="p-6 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {filteredData.map((item) => (
+              {customers.map((item) => (
                 <tr key={item._id} className="hover:bg-slate-50/50 transition-colors group">
                   <td className="p-6">
                     <input 
@@ -124,14 +151,11 @@ const CustomerList = () => {
                     </div>
                   </td>
                   <td className="p-6 font-bold text-slate-600">{item.mobile}</td>
-                  
-                  {/* UPDATED: Name badge instead of Role badge */}
                   <td className="p-6 text-center">
                     <span className="px-4 py-1.5 bg-slate-100 text-slate-800 rounded-lg font-black text-[9px] uppercase tracking-widest border border-slate-200">
                       {item.name}
                     </span>
                   </td>
-
                   <td className="p-6 text-center font-bold text-slate-400 text-xs">
                     {new Date(item.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                   </td>
@@ -150,6 +174,58 @@ const CustomerList = () => {
             </tbody>
           </table>
         </div>
+
+        {/* 3. New Pagination Controls */}
+        {!loading && customers.length > 0 && (
+          <div className="p-6 border-t border-slate-50 bg-slate-50/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+              Showing Page {pagination.page} of {pagination.pages} 
+              <span className="ml-2 text-slate-400">({pagination.total} Total Customers)</span>
+            </span>
+            
+            <div className="flex items-center gap-2">
+              <button
+                disabled={pagination.page === 1}
+                onClick={() => handlePageChange(pagination.page - 1)}
+                className="h-10 w-10 flex items-center justify-center border border-slate-200 rounded-xl bg-white disabled:opacity-30 hover:bg-slate-50 transition-all"
+              >
+                <ChevronLeft size={18} />
+              </button>
+
+              <div className="flex gap-1">
+                {[...Array(pagination.pages)].map((_, i) => {
+                  const pNum = i + 1;
+                  // Basic ellipsis logic for high page counts
+                  if (pagination.pages > 5 && Math.abs(pNum - pagination.page) > 1 && pNum !== 1 && pNum !== pagination.pages) {
+                    if (pNum === 2 || pNum === pagination.pages - 1) return <span key={pNum} className="px-1 text-slate-400">...</span>;
+                    return null;
+                  }
+                  return (
+                    <button
+                      key={pNum}
+                      onClick={() => handlePageChange(pNum)}
+                      className={`h-10 w-10 rounded-xl text-[11px] font-black transition-all ${
+                        pagination.page === pNum 
+                        ? 'bg-[#7e2827] text-white shadow-lg' 
+                        : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {pNum}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                disabled={pagination.page === pagination.pages}
+                onClick={() => handlePageChange(pagination.page + 1)}
+                className="h-10 w-10 flex items-center justify-center border border-slate-200 rounded-xl bg-white disabled:opacity-30 hover:bg-slate-50 transition-all"
+              >
+                <ChevronLeft size={18} className="rotate-180" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

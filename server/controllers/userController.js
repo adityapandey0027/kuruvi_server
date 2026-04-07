@@ -1,4 +1,5 @@
 import Order from "../models/orderModel.js";
+import UserAddress from "../models/userAddressModel.js";
 import User from "../models/userModel.js";
 import { asyncHandler } from "../utilities/asyncHandler.utils.js";
 import { errorHandler } from "../utilities/errorHandler.utils.js";
@@ -162,5 +163,112 @@ export const getCustomerDetails = asyncHandler(async (req, res, next) => {
                 limit
             }
         }
+    });
+});
+
+export const getUserAddress = asyncHandler(async (req, res, next) => {
+    const userId = req.user._id;
+
+    const addresses = await UserAddress.find({ userId });
+
+    res.status(200).json({
+        success: true,
+        addresses
+    });
+});
+
+export const createUserAddress = asyncHandler(async (req, res, next) => {
+    const userId = req.user._id;
+
+    const {
+        addressLine,
+        label,
+        city,
+        pincode,
+        receiverPhone,
+        coordinates,
+        isDefault
+    } = req.body;
+
+    if (!addressLine || !label) {
+        return next(new errorHandler("Address invalid", 400));
+    }
+
+    // If setting default → remove old default
+    if (isDefault) {
+        await UserAddress.updateMany(
+            { userId },
+            { isDefault: false }
+        );
+    }
+
+    const address = await UserAddress.create({
+        userId,
+        addressLine,
+        label,
+        city,
+        pincode,
+        receiverPhone,
+        location: coordinates
+            ? { type: "Point", coordinates }
+            : undefined,
+        isDefault
+    });
+
+    res.status(201).json({
+        success: true,
+        address
+    });
+});
+
+export const updateUserAddress = asyncHandler(async (req, res, next) => {
+    const userId = req.user._id;
+    const addressId = req.params.id;
+
+    const address = await UserAddress.findOne({
+        _id: addressId,
+        userId
+    });
+
+    if (!address) {
+        return next(new errorHandler("Address not found", 404));
+    }
+
+    const { isDefault } = req.body;
+
+    if (isDefault) {
+        await UserAddress.updateMany(
+            { userId },
+            { isDefault: false }
+        );
+    }
+
+    Object.assign(address, req.body);
+
+    await address.save();
+
+    res.status(200).json({
+        success: true,
+        address
+    });
+});
+
+
+export const deleteUserAddress = asyncHandler(async (req, res, next) => {
+    const userId = req.user._id;
+    const addressId = req.params.id;
+
+    const address = await UserAddress.findOneAndDelete({
+        _id: addressId,
+        userId
+    });
+
+    if (!address) {
+        return next(new errorHandler("Address not found", 404));
+    }
+
+    res.status(200).json({
+        success: true,
+        message: "Address deleted successfully"
     });
 });

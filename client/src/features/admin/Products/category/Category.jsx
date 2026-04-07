@@ -12,7 +12,6 @@ function useDebounce(value, delay) {
   }, [value, delay]);
   return debouncedValue;
 }
-
 const Category = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -22,8 +21,49 @@ const Category = () => {
   const [loading, setLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
 
+  // 1. Unified Pagination State
+  const [pagination, setPagination] = useState({ 
+    page: 1, 
+    pages: 1, 
+    total: 0, 
+    limit: 10 
+  });
+
   const debouncedMainSearch = useDebounce(searchTerm, 500);
 
+  // 2. Fetch Logic supporting both search and pagination
+  const fetchCategories = async (query = "", page = 1) => {
+    try {
+      setLoading(true);
+      // Use the 'all' endpoint for standard paginated listing
+      const endpoint = `/categories/all?q=${query}&page=${page}&limit=${pagination.limit}`;
+      const { data: res } = await API.get(endpoint);
+      
+      setCategories(res.data || []);
+      
+      // Update pagination info from backend response
+      if (res.pagination) {
+        setPagination(res.pagination);
+      }
+    } catch (err) {
+      toast.error("Failed to load categories");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 3. Reset to Page 1 when search term changes
+  useEffect(() => {
+    fetchCategories(debouncedMainSearch, 1);
+  }, [debouncedMainSearch]);
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= pagination.pages) {
+      fetchCategories(searchTerm, newPage);
+    }
+  };
+
+  // Keep existing edit/delete logic...
   useEffect(() => {
     if (location.state?.editCategory) {
       setSelectedCategory(location.state.editCategory);
@@ -32,29 +72,12 @@ const Category = () => {
     }
   }, [location.state]);
 
-  const fetchCategories = async (query = "") => {
-    try {
-      setLoading(true);
-      // FIXED: Calling categories/all as requested
-      const endpoint = query ? `/categories/search?q=${query}` : `/categories/all`;
-      const { data } = await API.get(endpoint);
-      setCategories(data.data || []);
-    } catch (err) {
-      toast.error("Failed to load categories");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchCategories(debouncedMainSearch);
-  }, [debouncedMainSearch]);
-
   const handleDelete = async (id) => {
     if (window.confirm("Are you sure?")) {
       try {
         await API.delete(`/categories/${id}`);
-        setCategories(prev => prev.filter(c => c._id !== id));
+        // Refresh current page after deletion
+        fetchCategories(searchTerm, pagination.page);
         toast.success("Deleted successfully!");
       } catch (err) { 
         toast.error("Delete failed"); 
@@ -66,6 +89,7 @@ const Category = () => {
     <div className="space-y-6 p-4 font-sans">
       {view === 'list' && (
         <>
+          {/* Header Section (Unchanged) */}
           <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
             <div>
               <h2 className="text-2xl font-black text-black uppercase tracking-tight">Product Categories</h2>
@@ -80,6 +104,7 @@ const Category = () => {
           </div>
 
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+            {/* Search Section (Unchanged) */}
             <div className="p-6 border-b border-slate-100 bg-slate-50/30">
               <div className="relative w-80">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
@@ -94,6 +119,7 @@ const Category = () => {
             </div>
 
             <table className="w-full text-left">
+              {/* Existing Table Content... */}
               <thead className="bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-500 uppercase tracking-widest">
                 <tr>
                   <th className="px-6 py-4">Image</th>
@@ -113,7 +139,6 @@ const Category = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      {/* Kept same logic to redirect to sub cat */}
                       <button 
                         onClick={() => navigate(`/admin/category/sub/${cat._id}`)} 
                         className="font-black uppercase text-sm hover:text-[#7e2827] text-left"
@@ -137,6 +162,65 @@ const Category = () => {
                 ))}
               </tbody>
             </table>
+
+            {/* 4. Integrated Pagination UI */}
+            {!loading && categories.length > 0 && (
+              <div className="p-6 border-t border-slate-100 bg-slate-50/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                  Showing Page {pagination.page} of {pagination.pages} 
+                  <span className="ml-2 text-black/40">({pagination.total} Total)</span>
+                </span>
+                
+                <div className="flex items-center gap-2">
+                  <button
+                    disabled={pagination.page === 1}
+                    onClick={() => handlePageChange(pagination.page - 1)}
+                    className="h-10 w-10 flex items-center justify-center border border-slate-200 rounded-xl bg-white disabled:opacity-30 hover:bg-slate-50 transition-all shadow-sm"
+                  >
+                    <ChevronLeft size={18} />
+                  </button>
+
+                  <div className="flex gap-1">
+                    {[...Array(pagination.pages)].map((_, i) => {
+                      const pageNum = i + 1;
+                      const isVisible = 
+                        pageNum === 1 || 
+                        pageNum === pagination.pages || 
+                        Math.abs(pageNum - pagination.page) <= 1;
+
+                      if (!isVisible) {
+                        if (pageNum === 2 || pageNum === pagination.pages - 1) {
+                          return <span key={pageNum} className="px-1 text-slate-400 font-bold">...</span>;
+                        }
+                        return null;
+                      }
+
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => handlePageChange(pageNum)}
+                          className={`h-10 w-10 rounded-xl text-[11px] font-black transition-all ${
+                            pagination.page === pageNum 
+                            ? 'bg-[#7e2827] text-white shadow-lg shadow-red-900/20' 
+                            : 'bg-white border border-slate-200 text-black hover:bg-slate-50'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    disabled={pagination.page === pagination.pages}
+                    onClick={() => handlePageChange(pagination.page + 1)}
+                    className="h-10 w-10 flex items-center justify-center border border-slate-200 rounded-xl bg-white disabled:opacity-30 hover:bg-slate-50 transition-all shadow-sm"
+                  >
+                    <ChevronLeft size={18} className="rotate-180" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}
@@ -146,7 +230,8 @@ const Category = () => {
           type={view}
           data={selectedCategory}
           onBack={() => setView('list')}
-          refresh={() => fetchCategories(searchTerm)}
+          // Refresh current page after editing
+          refresh={() => fetchCategories(searchTerm, pagination.page)}
         />
       )}
     </div>
