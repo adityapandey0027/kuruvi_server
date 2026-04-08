@@ -12,7 +12,8 @@ const s3 = new S3Client({
 
 const uploadToS3 = async (file, category = 'general') => {
     try {
-        const fileName = `${Date.now()}-${file.originalname}`; 
+        const newFile = Math.ceil(Math.random() * 100000) + 1;
+        const fileName = `${Date.now()}-${newFile}`; 
 
         const key = `${category}/${fileName}`;
 
