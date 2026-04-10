@@ -7,12 +7,27 @@ import mongoose from "mongoose";
 import Variant from "../models/variantModel.js";
 import Razorpay from "razorpay";
 import crypto from "crypto";
+import Store from "../models/storeModel.js";
 
 
 const razorpay = new Razorpay({
     key_id: process.env.RAZORPAY_KEY_ID,
     key_secret: process.env.RAZORPAY_KEY_SECRET
 });
+
+function getDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+
+    const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(lat1 * Math.PI / 180) *
+        Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) ** 2;
+
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 export const createOrder = asyncHandler(async (req, res, next) => {
     const { storeId, items, addressId, deliveryFee = 0, paymentOption } = req.body;
@@ -102,6 +117,7 @@ export const createOrder = asyncHandler(async (req, res, next) => {
         if (paymentOption === "COD") {
             const io = req.app.get("io");
 
+            //  Emit to store dashboard
             io.to(`store_${storeId}`).emit("new_order", {
                 orderId: newOrder._id,
                 displayId: newOrder.orderId,
@@ -111,6 +127,34 @@ export const createOrder = asyncHandler(async (req, res, next) => {
                 paymentType: newOrder.paymentOption,
                 createdAt: newOrder.createdAt
             });
+
+            // Emit to NEAREST riders only
+            const store = await Store.findById(storeId);
+            const [storeLng, storeLat] = store.location.coordinates;
+
+            const MAX_DISTANCE = 5; // km
+
+            for (const [riderId, socketId] of riderSockets.entries()) {
+
+                const riderLoc = riderLocations.get(riderId);
+                if (!riderLoc) continue;
+
+                const distance = getDistance(
+                    storeLat,
+                    storeLng,
+                    riderLoc.lat,
+                    riderLoc.lng
+                );
+
+                if (distance <= MAX_DISTANCE) {
+                    io.to(socketId).emit("new_order", {
+                        orderId: newOrder._id,
+                        displayId: newOrder.orderId,
+                        amount: totalAmount,
+                        status: newOrder.status
+                    });
+                }
+            }
         }
 
         res.status(201).json({
@@ -128,7 +172,7 @@ export const createOrder = asyncHandler(async (req, res, next) => {
 });
 
 export const createRazorpayOrder = asyncHandler(async (req, res, next) => {
-    const { orderId } = req.params;
+    const { orderId } = req.body;
     const userId = req.user._id;
 
     const order = await Order.findOne({ orderId });
@@ -257,20 +301,99 @@ export const updateOrderPaymentStatus = asyncHandler(async (req, res, next) => {
     // emit
     const io = req.app.get("io");
 
+    //  Emit to store dashboard
     io.to(`store_${order.storeId}`).emit("new_order", {
-        orderId: order._id,
-        displayId: order.orderId,
-        amount: order.totalAmount,
-        status: order.status,
-        paymentType: order.paymentOption,
-        createdAt: order.createdAt
+        orderId: newOrder._id,
+        displayId: newOrder.orderId,
+        amount: totalAmount,
+        itemsCount: items.length,
+        status: newOrder.status,
+        paymentType: newOrder.paymentOption,
+        createdAt: newOrder.createdAt
     });
+
+    // Emit to NEAREST riders only
+    const store = await Store.findById(order.storeId);
+    const [storeLng, storeLat] = store.location.coordinates;
+
+    const MAX_DISTANCE = 5; // km
+
+    for (const [riderId, socketId] of riderSockets.entries()) {
+
+        const riderLoc = riderLocations.get(riderId);
+        if (!riderLoc) continue;
+
+        const distance = getDistance(
+            storeLat,
+            storeLng,
+            riderLoc.lat,
+            riderLoc.lng
+        );
+
+        if (distance <= MAX_DISTANCE) {
+            io.to(socketId).emit("new_order", {
+                orderId: newOrder._id,
+                displayId: newOrder.orderId,
+                amount: totalAmount,
+                status: newOrder.status
+            });
+        }
+    }
 
     res.status(200).json({
         success: true,
         message: "Payment verified and order confirmed"
     });
 });
+
+export const updateOrderStatus = asyncHandler(async (req, res, next) => {
+    const userId = req.user._id;
+    const role = req.user.role;
+    const { status } = req.body;
+
+    const order = await Order.findById(req.params.id);
+
+    if (!order) {
+        return next(new errorHandler("Order not found", 404));
+    }
+
+    if (role === "store") {
+        if (!["CONFIRMED", "PACKING"].includes(status)) {
+            return next(new errorHandler("Invalid status for store", 400));
+        }
+    }
+
+    if (role === "rider") {
+        if (!["OUT_FOR_DELIVERY", "DELIVERED"].includes(status)) {
+            return next(new errorHandler("Invalid status for rider", 400));
+        }
+
+        if (order.riderId?.toString() !== userId.toString()) {
+            return next(new errorHandler("Not your order", 403));
+        }
+    }
+
+    order.status = status;
+    await order.save();
+
+    const io = req.app.get("io");
+
+    io.to(`order_${order._id}`).emit("order_status_update", {
+        orderId: order._id,
+        status: order.status,
+        updatedAt: new Date()
+    });
+
+    res.status(200).json({
+        success: true,
+        message: "Order status updated",
+        data: order
+    });
+});
+
+
+
+
 
 // @route   GET /api/orders/inhouse
 export const getInhouseOrders = asyncHandler(async (req, res, next) => {

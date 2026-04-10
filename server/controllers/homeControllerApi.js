@@ -9,8 +9,6 @@ import Inventory from "../models/inventoryModel.js";
 import Variant from "../models/variantModel.js";
 
 
-
-
 export const getMostShoppedProducts = asyncHandler(async (req, res, next) => {
     const { storeId } = req.params;
     const { limit = 10, days } = req.query;
@@ -127,7 +125,10 @@ export const getMostShoppedProducts = asyncHandler(async (req, res, next) => {
                 _id: 0,
                 productId: "$_id",
                 name: "$product.name",
+                variantId: "$inventory.variantId",
                 brand: "$product.brand",
+                size: "$inventory.variant.size",
+                unit: "$inventory.variant.unit",
                 description: "$product.description",
                 totalSold: 1,
                 price: "$inventory.price",
@@ -272,8 +273,11 @@ export const getlowestPricedProducts = asyncHandler(async (req, res, next) => {
                     $project: {
                         _id: 0,
                         productId: "$product._id",
+                        variantId: "$variant._id",
                         productName: "$product.name",
                         brand: "$product.brand",
+                        unit: "$variant.unit",
+                        weight: "$variant.weight",
                         description: "$product.description",
                         variantSize: "$variant.size",
                         mrp: "$variant.mrp",

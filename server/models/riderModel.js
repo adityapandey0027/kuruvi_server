@@ -32,7 +32,11 @@ const riderSchema = new mongoose.Schema({
     type : Boolean,
     default : true
   },
-
+  role :{
+    type : String,
+    required : true,
+    default : "rider"
+  },
   activeOrders:Number
 
 },{

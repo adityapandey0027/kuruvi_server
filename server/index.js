@@ -26,8 +26,10 @@ import cartRoute from './routes/cartRoutes.js';
 const app = express();
 const port = process.env.PORT || 8080;
 
+// HTTP server
 const server = http.createServer(app);
 
+//  Socket.io
 const io = new Server(server, {
   cors: {
     origin: [
@@ -39,9 +41,11 @@ const io = new Server(server, {
   }
 });
 
-const userSockets = new Map();
-const riderSockets = new Map();
-const storeSockets = new Map(); 
+export const userSockets = new Map();     // userId -> socketId
+export const riderSockets = new Map();    // riderId -> socketId
+export const storeSockets = new Map();    // storeUserId -> socketId
+export const riderLocations = new Map();  // riderId -> { lat, lng, ts }
+
 io.on("connection", (socket) => {
   try {
     const { userId, role, storeId } = socket.handshake.query;
@@ -53,33 +57,42 @@ io.on("connection", (socket) => {
 
     socket.data.userId = userId;
     socket.data.role = role;
-    socket.data.storeId = storeId;
+    socket.data.storeId = storeId || null;
 
+    // 👤 USER
     if (role === "user") {
       userSockets.set(userId, socket.id);
     }
 
+    // RIDER (❗ no store room join for riders)
     if (role === "rider") {
       riderSockets.set(userId, socket.id);
 
-      if (storeId) {
-        socket.join(`store_${storeId}`);
-      }
+      // Rider sends periodic location updates
+      socket.on("update_rider_location", ({ lat, lng }) => {
+        if (typeof lat !== "number" || typeof lng !== "number") return;
+
+        riderLocations.set(userId, { lat, lng, ts: Date.now() });
+      });
     }
 
+    // STORE
     if (role === "store") {
       storeSockets.set(userId, socket.id);
 
       if (storeId) {
         socket.join(`store_${storeId}`);
-        console.log(`Store connected: ${storeId}`);
+        console.log(`🏪 Store connected: ${storeId}`);
       }
     }
 
+    //Order tracking room (user + assigned rider)
     socket.on("join_order", (orderId) => {
+      if (!orderId) return;
       socket.join(`order_${orderId}`);
     });
 
+    // Live tracking broadcast 
     socket.on("update_location", ({ orderId, lat, lng }) => {
       if (!orderId) return;
 
@@ -94,7 +107,10 @@ io.on("connection", (socket) => {
       const { userId, role } = socket.data;
 
       if (role === "user") userSockets.delete(userId);
-      if (role === "rider") riderSockets.delete(userId);
+      if (role === "rider") {
+        riderSockets.delete(userId);
+        riderLocations.delete(userId); // cleanup
+      }
       if (role === "store") storeSockets.delete(userId);
     });
 
@@ -109,7 +125,6 @@ app.set("io", io);
 // Middlewares
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
 app.use(cors({
   origin: [
     "http://localhost:5173",
@@ -133,7 +148,7 @@ app.use("/v1/banners", bannerRoute);
 app.use("/v1/home", homeRoutes); 
 app.use("/v1/cart", cartRoute);
 
-// Health check
+// Health
 app.get("/", (req, res) => {
   res.send("Server is running");
 });
@@ -141,8 +156,10 @@ app.get("/", (req, res) => {
 // DB
 await connectDB();
 
+// Error
 app.use(errorMiddleware);
 
+// Start
 server.listen(port, () => {
-  console.log(`Server running with WebSocket on ${port}`);
+  console.log(`🚀 Server running with WebSocket on ${port}`);
 });
