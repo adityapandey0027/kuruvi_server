@@ -22,9 +22,12 @@ export const getUserProfile = asyncHandler(async (req, res, next) => {
 
 export const updateUserProfile = asyncHandler(async (req, res, next) => {
     const userId = req.user._id;
+    console.log("BODY:", req.body);
+    console.log("FILE:", req.file);
+    console.log("HEADERS:", req.headers["content-type"]);
 
     const { name, email } = req.body;
-
+    console.log(name)
     const user = await User.findById(userId);
 
     if (!user) {
@@ -57,12 +60,7 @@ export const updateUserProfile = asyncHandler(async (req, res, next) => {
 
     res.status(200).json({
         success: true,
-        data: {
-            _id: user._id,
-            name: user.name,
-            email: user.email,
-            image: user.image?.url || null
-        }
+        user
     });
 });
 
@@ -75,7 +73,11 @@ export const deleteUserProfile = asyncHandler(async (req, res, next) => {
         return next(new errorHandler("User not found", 404));
     }
 
-    await user.remove();
+    if (user?.image?.key) {
+        await deleteFromS3(user.image.key);
+    }
+
+    await user.deleteOne();
 
     res.status(200).json({
         success: true,
