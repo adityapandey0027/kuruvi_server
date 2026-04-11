@@ -15,7 +15,16 @@ const userSchema = new mongoose.Schema(
       match: [/^[0-9]{10}$/, "Please enter a valid 10-digit mobile number"],
       index: true
     },
-
+    email: {
+      type: String,
+      default: null
+    },
+    image: [
+      {
+        key: String,
+        url: String
+      }
+    ],
     role: {
       type: String,
       enum: ["user", "admin"],

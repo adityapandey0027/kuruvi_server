@@ -3,6 +3,7 @@ import UserAddress from "../models/userAddressModel.js";
 import User from "../models/userModel.js";
 import { asyncHandler } from "../utilities/asyncHandler.utils.js";
 import { errorHandler } from "../utilities/errorHandler.utils.js";
+import uploadToS3, { deleteFromS3 } from "../services/s3Services.js";
 
 export const getUserProfile = asyncHandler(async (req, res, next) => {
     const userId = req.user._id;
@@ -21,6 +22,7 @@ export const getUserProfile = asyncHandler(async (req, res, next) => {
 
 export const updateUserProfile = asyncHandler(async (req, res, next) => {
     const userId = req.user._id;
+
     const { name, email } = req.body;
 
     const user = await User.findById(userId);
@@ -29,8 +31,27 @@ export const updateUserProfile = asyncHandler(async (req, res, next) => {
         return next(new errorHandler("User not found", 404));
     }
 
-    user.name = name || user.name;
-    user.email = email || user.email;
+    if (email) {
+        const existingUser = await User.findOne({ email });
+
+        if (existingUser && existingUser._id.toString() !== userId.toString()) {
+            return next(new errorHandler("Email already in use", 400));
+        }
+    }
+
+    let image = null;
+
+    if (req.file) {
+        if (user?.image?.key) {
+            await deleteFromS3(user.image.key);
+        }
+
+        image = await uploadToS3(req.file, "profile");
+    }
+
+    if (name !== undefined) user.name = name;
+    if (email !== undefined) user.email = email;
+    if (image) user.image = image;
 
     await user.save();
 
@@ -39,7 +60,8 @@ export const updateUserProfile = asyncHandler(async (req, res, next) => {
         data: {
             _id: user._id,
             name: user.name,
-            email: user.email
+            email: user.email,
+            image: user.image?.url || null
         }
     });
 });
