@@ -166,6 +166,17 @@ export const getCustomerDetails = asyncHandler(async (req, res, next) => {
     });
 });
 
+export const getUserAddress = asyncHandler(async (req, res, next) => {
+    const userId = req.user._id;
+
+    const addresses = await UserAddress.find({ userId });
+
+    res.status(200).json({
+        success: true,
+        addresses
+    });
+});
+
 export const createUserAddress = asyncHandler(async (req, res, next) => {
     const userId = req.user._id;
 
@@ -179,12 +190,10 @@ export const createUserAddress = asyncHandler(async (req, res, next) => {
         isDefault = false
     } = req.body;
 
-    // 🔒 Validation
     if (!addressLine || !label) {
         return next(new errorHandler("Address invalid", 400));
     }
 
-    // 🔥 Default handling
     if (isDefault) {
         await UserAddress.updateMany({ userId }, { isDefault: false });
     }
@@ -199,7 +208,6 @@ export const createUserAddress = asyncHandler(async (req, res, next) => {
         isDefault
     };
 
-    // 📍 GeoJSON
     if (coordinates && coordinates.length === 2) {
         newAddress.location = {
             type: "Point",
@@ -263,6 +271,7 @@ export const updateUserAddress = asyncHandler(async (req, res, next) => {
         address
     });
 });
+
 
 export const deleteUserAddress = asyncHandler(async (req, res, next) => {
     const userId = req.user._id;

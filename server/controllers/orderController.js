@@ -394,7 +394,6 @@ export const updateOrderStatus = asyncHandler(async (req, res, next) => {
 
 
 
-
 // @route   GET /api/orders/inhouse
 export const getInhouseOrders = asyncHandler(async (req, res, next) => {
     let {
