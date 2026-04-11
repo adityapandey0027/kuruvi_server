@@ -9,7 +9,8 @@ const userAddressSchema = new mongoose.Schema({
 
     label: {
         type: String,
-        required: true
+        required: true,
+        enum : ["home", "office", "others"]
     },
 
     addressLine: {

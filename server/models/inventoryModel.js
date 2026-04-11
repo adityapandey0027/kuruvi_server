@@ -13,7 +13,9 @@ const inventorySchema = new mongoose.Schema({
     ref: "Variant",
     required: true 
   },
-
+  // mrp : {
+  //   type : Number,
+  // },
   price: {
     type: Number,
     required: true 

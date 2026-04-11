@@ -2,6 +2,7 @@ import { errorHandler } from "../utilities/errorHandler.utils.js";
 import { asyncHandler } from "../utilities/asyncHandler.utils.js";
 import HomeFirstBanner from "../models/bannerModel.js";
 import uploadToS3, { deleteFromS3 } from "../services/s3Services.js";
+import BrandBanner from "../models/brandBannnerModel.js";
 
 
 export const getFirstHomeBanners = asyncHandler(async (req, res, next) => {
@@ -116,3 +117,79 @@ export const toggleHomeFirstBannerStatus = asyncHandler(async (req, res, next) =
         data: banner
     });
 });
+
+export const createBrandBanner = asyncHandler(async (req, res, next) => {
+
+    if (!req.file) {
+        return next(new errorHandler("Image file must be required", 400));
+    }
+    const image = await uploadToS3(req.file, "brandBanners");
+
+    const brandBanner = await BrandBanner.create({
+        image,
+    })
+
+    res.status(201).json({
+        success: true,
+        message: "Brand Banner created",
+        data : brandBanner
+    })
+})
+
+export const getBrandBannerByUsers = asyncHandler(async (req, res, next) => {
+    const brandBanners = await BrandBanner.find({ isActive: true }).select("image").lean();
+
+    res.status(200).json({
+        success: true,
+        data : brandBanners
+    })
+
+})
+
+export const deleteBrandBanner = asyncHandler(async (req, res, next) => {
+    const bannerId = req.params.id;
+
+    const banner = await BrandBanner.findById(bannerId);
+    if (!banner) {
+        return next(new errorHandler("Banner not found", 404));
+    }
+
+    if (banner?.image?.key) {
+        await deleteFromS3(key);
+    }
+
+    banner.deleteOne();
+
+    res.status(200).json({
+        success: true,
+        message: "Brand Banner deleted successfully"
+    })
+})
+
+export const toggleStatusBrandBanner = asyncHandler(async (req, res, next) => {
+    const bannerId = req.params.id;
+
+    const brandBanner = await BrandBanner.findById(bannerId);
+
+    if (!brandBanner) {
+        return next(new errorHandler("Brand Banner not found"));
+    }
+
+    brandBanner.isActive = !brandBanner.isActive;
+
+    await brandBanner.save();
+
+    res.status(200).json({
+        success: true,
+        message: "Banner status updated"
+    })
+})
+
+export const getAllBrandBanners = asyncHandler(async (req, res, next) => {
+    const brandBanners = await BrandBanner.find({}).lean();
+
+    res.status(200).json({
+        success : true,
+        data : brandBanners
+    })
+})

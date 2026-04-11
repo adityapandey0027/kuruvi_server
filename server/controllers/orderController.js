@@ -8,7 +8,7 @@ import Variant from "../models/variantModel.js";
 import Razorpay from "razorpay";
 import crypto from "crypto";
 import Store from "../models/storeModel.js";
-
+import { riderSockets, riderLocations } from "../socketStore.js";
 
 const razorpay = new Razorpay({
     key_id: process.env.RAZORPAY_KEY_ID,
@@ -175,6 +175,10 @@ export const createRazorpayOrder = asyncHandler(async (req, res, next) => {
     const { orderId } = req.body;
     const userId = req.user._id;
 
+    if (!orderId) {
+        return next(new errorHandler("Order id is required", 400));
+    }
+
     const order = await Order.findOne({ orderId });
 
     if (!order) {
@@ -206,9 +210,7 @@ export const createRazorpayOrder = asyncHandler(async (req, res, next) => {
         });
     }
 
-    const createdAt = new Date(order.createdAt);
-    const now = new Date();
-    const diffMinutes = (now - createdAt) / (1000 * 60);
+    const diffMinutes = Math.floor((Date.now() - order.createdAt.getTime()) / 60000);
 
     if (diffMinutes > 30) {
         return next(new errorHandler("Order payment expired. Please place a new order.", 400));
@@ -243,7 +245,7 @@ export const createRazorpayOrder = asyncHandler(async (req, res, next) => {
         order.razorpayOrderId = razorpayOrder.id;
         await order.save();
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             message: "Razorpay order created successfully",
             order: {
@@ -256,7 +258,6 @@ export const createRazorpayOrder = asyncHandler(async (req, res, next) => {
 
     } catch (error) {
         console.error("Razorpay Error:", error);
-
         return next(new errorHandler("Failed to create Razorpay order", 500));
     }
 });
@@ -274,6 +275,7 @@ export const updateOrderPaymentStatus = asyncHandler(async (req, res, next) => {
         return next(new errorHandler("Order not found", 404));
     }
 
+    // 🔁 Idempotency
     if (order.paymentStatus === "SUCCESS") {
         return res.status(200).json({
             success: true,
@@ -281,6 +283,7 @@ export const updateOrderPaymentStatus = asyncHandler(async (req, res, next) => {
         });
     }
 
+    // 🔐 Signature verify
     const generatedSignature = crypto
         .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
         .update(`${razorpayOrderId}|${razorpayPaymentId}`)
@@ -290,53 +293,51 @@ export const updateOrderPaymentStatus = asyncHandler(async (req, res, next) => {
         return next(new errorHandler("Invalid payment signature", 400));
     }
 
+    // ✅ Update order
     order.paymentStatus = "SUCCESS";
     order.status = "CONFIRMED";
-
     order.razorpayPaymentId = razorpayPaymentId;
     order.razorpaySignature = razorpaySignature;
 
     await order.save();
 
-    // emit
     const io = req.app.get("io");
 
-    //  Emit to store dashboard
     io.to(`store_${order.storeId}`).emit("new_order", {
-        orderId: newOrder._id,
-        displayId: newOrder.orderId,
-        amount: totalAmount,
-        itemsCount: items.length,
-        status: newOrder.status,
-        paymentType: newOrder.paymentOption,
-        createdAt: newOrder.createdAt
+        orderId: order._id,
+        displayId: order.orderId,
+        amount: order.totalAmount,
+        status: order.status,
+        paymentType: order.paymentOption,
+        createdAt: order.createdAt
     });
 
-    // Emit to NEAREST riders only
     const store = await Store.findById(order.storeId);
-    const [storeLng, storeLat] = store.location.coordinates;
 
-    const MAX_DISTANCE = 5; // km
+    if (store?.location?.coordinates) {
+        const [storeLng, storeLat] = store.location.coordinates;
 
-    for (const [riderId, socketId] of riderSockets.entries()) {
+        const MAX_DISTANCE = 5; // km
 
-        const riderLoc = riderLocations.get(riderId);
-        if (!riderLoc) continue;
+        for (const [riderId, socketId] of riderSockets.entries()) {
+            const riderLoc = riderLocations.get(riderId);
+            if (!riderLoc) continue;
 
-        const distance = getDistance(
-            storeLat,
-            storeLng,
-            riderLoc.lat,
-            riderLoc.lng
-        );
+            const distance = getDistance(
+                storeLat,
+                storeLng,
+                riderLoc.lat,
+                riderLoc.lng
+            );
 
-        if (distance <= MAX_DISTANCE) {
-            io.to(socketId).emit("new_order", {
-                orderId: newOrder._id,
-                displayId: newOrder.orderId,
-                amount: totalAmount,
-                status: newOrder.status
-            });
+            if (distance <= MAX_DISTANCE) {
+                io.to(socketId).emit("new_order", {
+                    orderId: order._id,
+                    displayId: order.orderId,
+                    amount: order.totalAmount,
+                    status: order.status
+                });
+            }
         }
     }
 
@@ -631,3 +632,25 @@ export const getUserAllOrders = asyncHandler(async (req, res, next) => {
         data: formatted
     });
 });
+
+
+export const generateRazorpaySignature = ({
+  razorpayOrderId,
+  razorpayPaymentId,
+  secret
+}) => {
+  return crypto
+    .createHmac("sha256", secret)
+    .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+    .digest("hex");
+};
+
+
+const signature = generateRazorpaySignature({
+  razorpayOrderId: "order_ScK7s2pi7OR6s2",
+  razorpayPaymentId: "KUR-598949",
+  secret: process.env.RAZORPAY_KEY_SECRET
+});
+
+
+console.log(signature);

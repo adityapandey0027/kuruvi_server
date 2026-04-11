@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import HomeFirstBanner from '../features/admin/settings/homeBanner/pages/HomeFirstBanner';
+import BrandBanner from '../features/admin/settings/homeBanner/pages/BrandBanner';
 
 // --- Loading Component ---
 const PageLoader = () => (
@@ -79,6 +80,7 @@ const AppRouter = () => {
           <Route path="stores" element={<StoreManagement />} />
           <Route path="inventory" element={<InventoryManage />} />
           <Route path="settings/banner/first" element={<HomeFirstBanner />} />
+          <Route path="settings/banner/brand" element={<BrandBanner />} />
 
           {/* Members / Customers */}
           <Route path="users" element={<CustomerList />} />

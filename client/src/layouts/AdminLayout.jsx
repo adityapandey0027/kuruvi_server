@@ -49,10 +49,10 @@ const AdminLayout = () => {
 
   return (
     <div className="flex min-h-screen bg-[#f1f5f9] font-sans selection:bg-red-100 relative">
-      
+
       {/* Mobile Overlay */}
       {isSidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-30 lg:hidden"
           onClick={() => setIsSidebarOpen(false)}
         />
@@ -168,6 +168,8 @@ const AdminLayout = () => {
             {isSettingsOpen && (
               <div className="ml-2 border-l-2 border-slate-100 space-y-1 mt-1">
                 <NavLink to="/admin/settings/banner/first" className={subLinkStyle}>Home Banner </NavLink>
+                <NavLink to="/admin/settings/banner/brand" className={subLinkStyle}>Brand Banner </NavLink>
+
               </div>
             )}
           </div>
@@ -199,7 +201,7 @@ const AdminLayout = () => {
         <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-10 shrink-0">
           <div className="flex items-center gap-4">
             {/* Mobile Menu Toggle */}
-            <button 
+            <button
               onClick={() => setIsSidebarOpen(true)}
               className="lg:hidden p-2 bg-slate-50 rounded-xl text-slate-600 hover:text-[#7e2827]"
             >

@@ -8,6 +8,12 @@ import { Server } from "socket.io";
 
 import { connectDB } from './config/db.js';
 import { errorMiddleware } from './middlewares/errorMiddleware.js';
+import {
+  userSockets,
+  riderSockets,
+  storeSockets,
+  riderLocations
+} from "./socketStore.js";
 
 // Routes
 import authRouter from './routes/authRoutes.js';
@@ -41,10 +47,6 @@ const io = new Server(server, {
   }
 });
 
-export const userSockets = new Map();     // userId -> socketId
-export const riderSockets = new Map();    // riderId -> socketId
-export const storeSockets = new Map();    // storeUserId -> socketId
-export const riderLocations = new Map();  // riderId -> { lat, lng, ts }
 
 io.on("connection", (socket) => {
   try {

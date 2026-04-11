@@ -100,8 +100,6 @@ export const deleteDarkStore = asyncHandler(async (req, res, next) => {
 
 
 
-
-
 export const getNearestStore = asyncHandler(async (req, res, next) => {
 
     const { lat, lng } = req.body;
