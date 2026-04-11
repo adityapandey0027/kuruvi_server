@@ -166,17 +166,6 @@ export const getCustomerDetails = asyncHandler(async (req, res, next) => {
     });
 });
 
-export const getUserAddress = asyncHandler(async (req, res, next) => {
-    const userId = req.user._id;
-
-    const addresses = await UserAddress.find({ userId });
-
-    res.status(200).json({
-        success: true,
-        addresses
-    });
-});
-
 export const createUserAddress = asyncHandler(async (req, res, next) => {
     const userId = req.user._id;
 
@@ -187,33 +176,38 @@ export const createUserAddress = asyncHandler(async (req, res, next) => {
         pincode,
         receiverPhone,
         coordinates,
-        isDefault
+        isDefault = false
     } = req.body;
 
+    // 🔒 Validation
     if (!addressLine || !label) {
         return next(new errorHandler("Address invalid", 400));
     }
 
-    // If setting default → remove old default
+    // 🔥 Default handling
     if (isDefault) {
-        await UserAddress.updateMany(
-            { userId },
-            { isDefault: false }
-        );
+        await UserAddress.updateMany({ userId }, { isDefault: false });
     }
 
-    const address = await UserAddress.create({
+    const newAddress = {
         userId,
         addressLine,
         label,
         city,
         pincode,
         receiverPhone,
-        location: coordinates
-            ? { type: "Point", coordinates }
-            : undefined,
         isDefault
-    });
+    };
+
+    // 📍 GeoJSON
+    if (coordinates && coordinates.length === 2) {
+        newAddress.location = {
+            type: "Point",
+            coordinates
+        };
+    }
+
+    const address = await UserAddress.create(newAddress);
 
     res.status(201).json({
         success: true,
@@ -234,16 +228,33 @@ export const updateUserAddress = asyncHandler(async (req, res, next) => {
         return next(new errorHandler("Address not found", 404));
     }
 
-    const { isDefault } = req.body;
+    const {
+        addressLine,
+        label,
+        city,
+        pincode,
+        receiverPhone,
+        coordinates,
+        isDefault
+    } = req.body;
 
-    if (isDefault) {
-        await UserAddress.updateMany(
-            { userId },
-            { isDefault: false }
-        );
+    if (addressLine !== undefined) address.addressLine = addressLine;
+    if (label !== undefined) address.label = label;
+    if (city !== undefined) address.city = city;
+    if (pincode !== undefined) address.pincode = pincode;
+    if (receiverPhone !== undefined) address.receiverPhone = receiverPhone;
+
+    if (coordinates && coordinates.length === 2) {
+        address.location = {
+            type: "Point",
+            coordinates
+        };
     }
 
-    Object.assign(address, req.body);
+    if (isDefault === true) {
+        await UserAddress.updateMany({ userId }, { isDefault: false });
+        address.isDefault = true;
+    }
 
     await address.save();
 
@@ -252,7 +263,6 @@ export const updateUserAddress = asyncHandler(async (req, res, next) => {
         address
     });
 });
-
 
 export const deleteUserAddress = asyncHandler(async (req, res, next) => {
     const userId = req.user._id;

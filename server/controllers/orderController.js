@@ -572,3 +572,63 @@ export const getOrderDetail = asyncHandler(async (req, res, next) => {
     });
 });
 
+
+export const getUserAllOrders = asyncHandler(async (req, res, next) => {
+    const userId = req.user._id;
+
+    let {
+        page = 1,
+        limit = 10,
+        status,
+        fromDate,
+        toDate
+    } = req.query;
+
+    page = Number(page);
+    limit = Number(limit);
+
+    const skip = (page - 1) * limit;
+
+    // 🔍 Filters
+    const filter = { userId };
+
+    if (status) {
+        filter.status = status;
+    }
+
+    if (fromDate || toDate) {
+        filter.createdAt = {};
+        if (fromDate) filter.createdAt.$gte = new Date(fromDate);
+        if (toDate) filter.createdAt.$lte = new Date(toDate);
+    }
+
+    const orders = await Order.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .select("orderId totalAmount status paymentOption createdAt storeId")
+        .populate("storeId", "name")
+        .lean();
+
+    const total = await Order.countDocuments(filter);
+
+    const formatted = orders.map(order => ({
+        id: order._id,
+        orderId: order.orderId,
+        storeName: order.storeId?.name || "Store",
+        amount: order.totalAmount,
+        status: order.status,
+        paymentType: order.paymentOption,
+        date: order.createdAt
+    }));
+
+    res.status(200).json({
+        success: true,
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+        count: formatted.length,
+        data: formatted
+    });
+});
