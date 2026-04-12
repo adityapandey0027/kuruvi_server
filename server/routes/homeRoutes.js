@@ -9,4 +9,4 @@ const homeRoutes = express.Router();
 homeRoutes.get("/:storeId/most-shopped", getMostShoppedProducts);
 homeRoutes.get("/:storeId/lowest-priced", getlowestPricedProducts);
 homeRoutes.get("/:storeId/max-discount", getMaxDiscountProducts);
-export default homeRoutes;
+export default homeRoutes; 

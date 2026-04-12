@@ -167,6 +167,7 @@ const AdminLayout = () => {
             {isEcommerceOpen && (
               <div className="ml-2 border-l-2 border-slate-100 space-y-1 mt-1">
                 <NavLink to="/admin/ecommerce/coupon-manage" className={subLinkStyle}>Coupon Manage </NavLink>
+                <NavLink to="/admin/ecommerce/delivery-config" className={subLinkStyle}>Delivery Configurations </NavLink>
 
               </div>
             )}
@@ -188,6 +189,8 @@ const AdminLayout = () => {
               <div className="ml-2 border-l-2 border-slate-100 space-y-1 mt-1">
                 <NavLink to="/admin/settings/banner/first" className={subLinkStyle}>Home Banner </NavLink>
                 <NavLink to="/admin/settings/banner/brand" className={subLinkStyle}>Brand Banner </NavLink>
+                <NavLink to="/admin/settings/contacts" className={subLinkStyle}>Contact Info </NavLink>
+
 
               </div>
             )}

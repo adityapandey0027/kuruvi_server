@@ -10,6 +10,7 @@ const adminRouter = express.Router();
 adminRouter.post('/login', adminLogin);
 adminRouter.get("/profile", isAdmin, getAdminProfile);
 
+
 // Customer management routes
 adminRouter.get("/customers/all", isAdmin, getAllCustomers);
 adminRouter.get("/customers/details/:id", isAdmin, getCustomerDetails);

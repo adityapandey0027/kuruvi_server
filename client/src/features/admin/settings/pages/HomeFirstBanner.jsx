@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Image as ImageIcon, ChevronLeft, Save, Loader2, Power, PowerOff } from 'lucide-react';
 import { toast } from 'react-toastify';
-import API from '../../../../../api/axios';
+import API from '../../../../api/axios';
 
 const HomeFirstBanner = () => {
   const [view, setView] = useState('list'); // 'list', 'add', or 'edit'

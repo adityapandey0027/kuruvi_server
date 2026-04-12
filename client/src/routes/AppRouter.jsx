@@ -1,9 +1,11 @@
 import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import HomeFirstBanner from '../features/admin/settings/homeBanner/pages/HomeFirstBanner';
-import BrandBanner from '../features/admin/settings/homeBanner/pages/BrandBanner';
+import HomeFirstBanner from '../features/admin/settings/pages/HomeFirstBanner';
+import BrandBanner from '../features/admin/settings/pages/BrandBanner';
 import CouponManage from '../features/admin/ecommerce-setup/pages/CouponManage';
+import DeliveryConfig from '../features/admin/ecommerce-setup/pages/DeliveryConfig';
+import ContactConfig from '../features/admin/settings/pages/ContactConfig';
 
 // --- Loading Component ---
 const PageLoader = () => (
@@ -82,10 +84,11 @@ const AppRouter = () => {
           <Route path="inventory" element={<InventoryManage />} />
 
           {/* e commerce setup Management */}
-          <Route path="ecommerce/coupon-manage" element={< CouponManage/>} />
+          <Route path="ecommerce/coupon-manage" element={< CouponManage />} />
+          <Route path="ecommerce/delivery-config" element={< DeliveryConfig />} />
           <Route path="settings/banner/first" element={<HomeFirstBanner />} />
           <Route path="settings/banner/brand" element={<BrandBanner />} />
-
+          <Route path="settings/contacts" element={< ContactConfig />} />
           {/* Members / Customers */}
           <Route path="users" element={<CustomerList />} />
           <Route path="customer/view/:id" element={<CustomerDetail />} />

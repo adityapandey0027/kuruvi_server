@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Image as ImageIcon, Save, Loader2, Power, PowerOff, X, ChevronLeft } from 'lucide-react';
 import { toast } from 'react-toastify';
-import API from '../../../../../api/axios';
+import API from '../../../../api/axios';
 
 const BrandBanner = () => {
   const [banners, setBanners] = useState([]);
