@@ -49,8 +49,8 @@ export const createProduct = asyncHandler(async (req, res, next) => {
 
             variantDocs.push({
                 productId,
-                sku: v.sku || undefined,      
-                barcode: v.barcode || undefined, 
+                sku: v.sku || undefined,
+                barcode: v.barcode || undefined,
                 mrp: v.mrp,
                 size: v.size,
                 unit: v.unit,
@@ -118,7 +118,7 @@ export const editProduct = asyncHandler(async (req, res, next) => {
 
         await product.save({ session });
 
-     
+
         if (deletedIds.length > 0) {
             const variantsToDelete = await Variant.find({
                 _id: { $in: deletedIds }
@@ -314,7 +314,7 @@ export const getProducts = asyncHandler(async (req, res, next) => {
 });
 
 export const getAllProducts = asyncHandler(async (req, res, next) => {
-    const { page = 1, limit = 10, search = "" } = req.query; 
+    const { page = 1, limit = 10, search = "" } = req.query;
 
     let filter = { isActive: true };
 
@@ -476,7 +476,7 @@ export const createVariant = asyncHandler(async (req, res, next) => {
         unit,
         weight,
         attributes,
-        images: uploadedImages 
+        images: uploadedImages
     });
 
     res.status(201).json({
@@ -541,8 +541,8 @@ export const getVarauriantsBySearch = asyncHandler(async (req, res, next) => {
             }
         ]
     })
-    .select("_id productId sku barcode mrp size unit weight attributes images")
-    .lean();
+        .select("_id productId sku barcode mrp size unit weight attributes images")
+        .lean();
 
     const productIdsFromVariants = variantMatches.map(v => v.productId);
 
@@ -558,15 +558,15 @@ export const getVarauriantsBySearch = asyncHandler(async (req, res, next) => {
     const allVariants = await Variant.find({
         productId: { $in: allProductIds }
     })
-    .select("_id productId sku barcode mrp size unit weight attributes images")
-    .lean();
+        .select("_id productId sku barcode mrp size unit weight attributes images")
+        .lean();
 
     // 5️⃣ Get product names
     const products = await Product.find({
         _id: { $in: allProductIds }
     })
-    .select("_id name")
-    .lean();
+        .select("_id name")
+        .lean();
 
     const productMap = {};
     products.forEach(p => {
@@ -613,7 +613,6 @@ export const getAllProductInApp = asyncHandler(async (req, res, next) => {
     const { storeId } = req.params;
     const skip = (page - 1) * limit;
 
-    // 🔥 Dynamic sort
     let sortOption = { price: 1 };
     if (sort === "price_desc") sortOption = { price: -1 };
     if (sort === "newest") sortOption = { "product.createdAt": -1 };
@@ -649,57 +648,57 @@ export const getAllProductInApp = asyncHandler(async (req, res, next) => {
         },
         { $unwind: "$product" },
 
-        // 🔍 Search (TEXT + fallback)
+        // Search (TEXT + fallback)
         ...(search
             ? [
-                  {
-                      $match: {
-                          $or: [
-                              { $text: { $search: search } }, // fast search
-                              { "product.name": { $regex: search, $options: "i" } },
-                              { "product.brand": { $regex: search, $options: "i" } },
-                              { "variant.size": { $regex: search, $options: "i" } },
-                              { "variant.unit": { $regex: search, $options: "i" } }
-                          ]
-                      }
-                  }
-              ]
+                {
+                    $match: {
+                        $or: [
+                            { $text: { $search: search } }, // fast search
+                            { "product.name": { $regex: search, $options: "i" } },
+                            { "product.brand": { $regex: search, $options: "i" } },
+                            { "variant.size": { $regex: search, $options: "i" } },
+                            { "variant.unit": { $regex: search, $options: "i" } }
+                        ]
+                    }
+                }
+            ]
             : []),
 
-        // 🗂 Category
+        // Category
         ...(categoryId
             ? [
-                  {
-                      $match: {
-                          "product.categoryId": new mongoose.Types.ObjectId(categoryId)
-                      }
-                  }
-              ]
+                {
+                    $match: {
+                        "product.categoryId": new mongoose.Types.ObjectId(categoryId)
+                    }
+                }
+            ]
             : []),
 
-        // 🏷 Brand
+        // Brand
         ...(brand
             ? [
-                  {
-                      $match: {
-                          "product.brand": { $regex: brand, $options: "i" }
-                      }
-                  }
-              ]
+                {
+                    $match: {
+                        "product.brand": { $regex: brand, $options: "i" }
+                    }
+                }
+            ]
             : []),
 
-        // 💰 Price range
+        //  Price range
         ...(minPrice || maxPrice
             ? [
-                  {
-                      $match: {
-                          price: {
-                              ...(minPrice ? { $gte: Number(minPrice) } : {}),
-                              ...(maxPrice ? { $lte: Number(maxPrice) } : {})
-                          }
-                      }
-                  }
-              ]
+                {
+                    $match: {
+                        price: {
+                            ...(minPrice ? { $gte: Number(minPrice) } : {}),
+                            ...(maxPrice ? { $lte: Number(maxPrice) } : {})
+                        }
+                    }
+                }
+            ]
             : []),
 
         // 🔥 Sort before grouping
@@ -752,5 +751,147 @@ export const getAllProductInApp = asyncHandler(async (req, res, next) => {
         total,
         count: products.length,
         data: products
+    });
+});
+
+export const getProductByCategoryGroup = asyncHandler(async (req, res, next) => {
+    const { storeId } = req.params;
+
+    let { page = 1, limit = 20 } = req.query;
+
+    page = Number(page);
+    limit = Number(limit);
+    const skip = (page - 1) * limit;
+
+    const pipeline = [
+        {
+            $match: {
+                storeId: new mongoose.Types.ObjectId(storeId),
+                isAvailable: true,
+                stock: { $gt: 0 }
+            }
+        },
+
+        // Variant
+        {
+            $lookup: {
+                from: "variants",
+                localField: "variantId",
+                foreignField: "_id",
+                as: "variant"
+            }
+        },
+        { $unwind: "$variant" },
+
+        // Product
+        {
+            $lookup: {
+                from: "products",
+                localField: "variant.productId",
+                foreignField: "_id",
+                as: "product"
+            }
+        },
+        { $unwind: "$product" },
+
+        {
+            $match: {
+                "product.isActive": true
+            }
+        },
+
+        // Category
+        {
+            $lookup: {
+                from: "categories",
+                localField: "product.categoryId",
+                foreignField: "_id",
+                as: "category"
+            }
+        },
+        {
+            $unwind: {
+                path: "$category",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+
+        // Sort cheapest variant
+        { $sort: { price: 1 } },
+
+        // One product → one variant
+        {
+            $group: {
+                _id: "$product._id",
+                doc: { $first: "$$ROOT" }
+            }
+        },
+        { $replaceRoot: { newRoot: "$doc" } },
+
+        {
+            $group: {
+                _id: {
+                    categoryId: "$product.categoryId",
+                    categoryName: {
+                        $ifNull: ["$category.name", "Other"]
+                    },
+                    categoryImage: {
+                        $ifNull: ["$category.image", null]
+                    }
+                },
+                products: {
+                    $push: {
+                        productId: "$product._id",
+                        variantId: "$variant._id",
+                        name: "$product.name",
+                        brand: "$product.brand",
+                        price: "$price",
+                        mrp: "$variant.mrp",
+                        image: { $arrayElemAt: ["$variant.images.url", 0] }
+                    }
+                }
+            }
+        },
+
+        // Flatten structure
+        {
+            $project: {
+                _id: 0,
+                categoryId: "$_id.categoryId",
+                categoryName: "$_id.categoryName",
+                categoryImage: "$_id.categoryImage",
+                products: 1
+            }
+        },
+
+        // Sort categories
+        {
+            $sort: { categoryName: 1 }
+        },
+
+        // Pagination
+        {
+            $facet: {
+                data: [
+                    { $skip: skip },
+                    { $limit: limit }
+                ],
+                totalCount: [{ $count: "total" }]
+            }
+        }
+    ];
+
+    const result = await Inventory.aggregate(pipeline);
+
+    const data = result[0]?.data || [];
+    const total = result[0]?.totalCount[0]?.total || 0;
+
+    res.status(200).json({
+        success: true,
+        page,
+        limit,
+        total,
+        count: data.length,
+        data
     });
 });

@@ -1,13 +1,13 @@
 import express from 'express';
 import { isAdmin, isAuth } from '../middlewares/isAuthMiddleware.js';
-import { createProduct, createVariant, getProducts, getProductById, getProductWithVariantById, getAllProducts, getVarauriantsBySearch, editProduct, deleteProduct, getAllProductInApp } from '../controllers/productController.js';
+import { createProduct, createVariant, getProducts, getProductById, getProductWithVariantById, getAllProducts, getVarauriantsBySearch, editProduct, deleteProduct, getAllProductInApp, getProductByCategoryGroup } from '../controllers/productController.js';
 import upload from '../middlewares/uploadMiddleware.js';
 
 const productRoutes = express.Router();
 
 // app routes
 productRoutes.get("/:storeId/view-products", getAllProductInApp);
-
+productRoutes.get("/:storeId/products-cats", getProductByCategoryGroup);
 
 productRoutes.post("/variant", isAuth, upload.array('image', 6), createVariant);
 
