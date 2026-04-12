@@ -586,15 +586,11 @@ export const getUserAllOrders = asyncHandler(async (req, res, next) => {
 
     page = Number(page);
     limit = Number(limit);
-
     const skip = (page - 1) * limit;
 
-    // 🔍 Filters
     const filter = { userId };
 
-    if (status) {
-        filter.status = status;
-    }
+    if (status) filter.status = status;
 
     if (fromDate || toDate) {
         filter.createdAt = {};
@@ -610,7 +606,35 @@ export const getUserAllOrders = asyncHandler(async (req, res, next) => {
         .populate("storeId", "name")
         .lean();
 
-    const total = await Order.countDocuments(filter);
+    const orderIds = orders.map(o => o._id);
+
+    const items = await OrderItem.find({ orderId: { $in: orderIds } })
+        .populate({
+            path: "variantId",
+            populate: {
+                path: "productId",
+                select: "name brand"
+            }
+        })
+        .lean();
+
+    const itemMap = {};
+    items.forEach(item => {
+        const key = item.orderId.toString();
+        if (!itemMap[key]) itemMap[key] = [];
+
+        itemMap[key].push({
+            variantId: item.variantId?._id,
+            productId: item.variantId?.productId?._id,
+            name: item.variantId?.productId?.name,
+            brand: item.variantId?.productId?.brand,
+            size: item.variantId?.size,
+            unit: item.variantId?.unit,
+            price: item.price,
+            quantity: item.quantity,
+            image: item.variantId?.images?.[0]?.url
+        });
+    });
 
     const formatted = orders.map(order => ({
         id: order._id,
@@ -619,8 +643,11 @@ export const getUserAllOrders = asyncHandler(async (req, res, next) => {
         amount: order.totalAmount,
         status: order.status,
         paymentType: order.paymentOption,
-        date: order.createdAt
+        date: order.createdAt,
+        items: itemMap[order._id.toString()] || []
     }));
+
+    const total = await Order.countDocuments(filter);
 
     res.status(200).json({
         success: true,
@@ -632,7 +659,6 @@ export const getUserAllOrders = asyncHandler(async (req, res, next) => {
         data: formatted
     });
 });
-
 
 // export const generateRazorpaySignature = ({
 //   razorpayOrderId,
