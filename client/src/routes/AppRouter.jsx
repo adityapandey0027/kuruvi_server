@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import HomeFirstBanner from '../features/admin/settings/homeBanner/pages/HomeFirstBanner';
 import BrandBanner from '../features/admin/settings/homeBanner/pages/BrandBanner';
+import CouponManage from '../features/admin/ecommerce-setup/pages/CouponManage';
 
 // --- Loading Component ---
 const PageLoader = () => (
@@ -79,6 +80,9 @@ const AppRouter = () => {
           <Route path="my-products/view/:id" element={<ProductDetailView />} />
           <Route path="stores" element={<StoreManagement />} />
           <Route path="inventory" element={<InventoryManage />} />
+
+          {/* e commerce setup Management */}
+          <Route path="ecommerce/coupon-manage" element={< CouponManage/>} />
           <Route path="settings/banner/first" element={<HomeFirstBanner />} />
           <Route path="settings/banner/brand" element={<BrandBanner />} />
 

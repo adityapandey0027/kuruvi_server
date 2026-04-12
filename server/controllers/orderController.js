@@ -634,23 +634,23 @@ export const getUserAllOrders = asyncHandler(async (req, res, next) => {
 });
 
 
-export const generateRazorpaySignature = ({
-  razorpayOrderId,
-  razorpayPaymentId,
-  secret
-}) => {
-  return crypto
-    .createHmac("sha256", secret)
-    .update(`${razorpayOrderId}|${razorpayPaymentId}`)
-    .digest("hex");
-};
+// export const generateRazorpaySignature = ({
+//   razorpayOrderId,
+//   razorpayPaymentId,
+//   secret
+// }) => {
+//   return crypto
+//     .createHmac("sha256", secret)
+//     .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+//     .digest("hex");
+// };
 
 
-const signature = generateRazorpaySignature({
-  razorpayOrderId: "order_ScK7s2pi7OR6s2",
-  razorpayPaymentId: "KUR-598949",
-  secret: process.env.RAZORPAY_KEY_SECRET
-});
+// const signature = generateRazorpaySignature({
+//   razorpayOrderId: "order_ScK7s2pi7OR6s2",
+//   razorpayPaymentId: "KUR-598949",
+//   secret: process.env.RAZORPAY_KEY_SECRET
+// });
 
 
-console.log(signature);
+// console.log(signature);

@@ -29,6 +29,7 @@ import bannerRoute from './routes/bannerRoutes.js';
 import homeRoutes from './routes/homeRoutes.js';
 import cartRoute from './routes/cartRoutes.js';
 import favoriteRoute from './routes/favoriteRoutes.js';
+import couponRoute from './routes/couponRoutes.js';
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -62,12 +63,12 @@ io.on("connection", (socket) => {
     socket.data.role = role;
     socket.data.storeId = storeId || null;
 
-    // 👤 USER
+    //  USER
     if (role === "user") {
       userSockets.set(userId, socket.id);
     }
 
-    // RIDER (❗ no store room join for riders)
+    // RIDER ( no store room join for riders)
     if (role === "rider") {
       riderSockets.set(userId, socket.id);
 
@@ -85,7 +86,7 @@ io.on("connection", (socket) => {
 
       if (storeId) {
         socket.join(`store_${storeId}`);
-        console.log(`🏪 Store connected: ${storeId}`);
+        console.log(`Store connected: ${storeId}`);
       }
     }
 
@@ -151,6 +152,8 @@ app.use("/v1/banners", bannerRoute);
 app.use("/v1/home", homeRoutes); 
 app.use("/v1/cart", cartRoute);
 app.use("/v1/favorites", favoriteRoute);
+app.use("/v1/coupons", couponRoute);
+
 // Health
 app.get("/", (req, res) => {
   res.send("Server is running");

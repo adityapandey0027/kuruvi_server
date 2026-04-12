@@ -308,3 +308,128 @@ export const getlowestPricedProducts = asyncHandler(async (req, res, next) => {
         data
     });
 });
+
+
+export const getMaxDiscountProducts = asyncHandler(async (req, res, next) => {
+    const { storeId } = req.params;
+    const { limit = 10, page = 1 } = req.query;
+
+    const skip = (page - 1) * limit;
+
+    const pipeline = [
+        {
+            $match: {
+                storeId: new mongoose.Types.ObjectId(storeId),
+                isAvailable: true,
+                stock: { $gt: 0 }
+            }
+        },
+
+        // 🔗 Variant
+        {
+            $lookup: {
+                from: "variants",
+                localField: "variantId",
+                foreignField: "_id",
+                as: "variant"
+            }
+        },
+        { $unwind: "$variant" },
+
+        // 🔗 Product
+        {
+            $lookup: {
+                from: "products",
+                localField: "variant.productId",
+                foreignField: "_id",
+                as: "product"
+            }
+        },
+        { $unwind: "$product" },
+
+        {
+            $match: {
+                "product.isActive": true
+            }
+        },
+
+        // 🔥 Discount Calculation
+        {
+            $addFields: {
+                discountAmount: { $subtract: ["$variant.mrp", "$price"] },
+                discountPercentage: {
+                    $cond: [
+                        { $gt: ["$variant.mrp", 0] },
+                        {
+                            $multiply: [
+                                { $divide: [{ $subtract: ["$variant.mrp", "$price"] }, "$variant.mrp"] },
+                                100
+                            ]
+                        },
+                        0
+                    ]
+                }
+            }
+        },
+
+        // 🔥 Sort highest discount first
+        {
+            $sort: {
+                discountAmount: -1,
+                discountPercentage: -1
+            }
+        },
+
+        // 🔥 One product → best discounted variant
+        {
+            $group: {
+                _id: "$product._id",
+                doc: { $first: "$$ROOT" }
+            }
+        },
+        { $replaceRoot: { newRoot: "$doc" } },
+
+        // 🔥 Pagination
+        {
+            $facet: {
+                data: [
+                    { $skip: Number(skip) },
+                    { $limit: Number(limit) },
+                    {
+                        $project: {
+                            _id: 0,
+                            productId: "$product._id",
+                            variantId: "$variant._id",
+                            name: "$product.name",
+                            brand: "$product.brand",
+                            price: "$price",
+                            mrp: "$variant.mrp",
+                            discount: "$discountAmount",
+                            discountPercentage: {
+                                $round: ["$discountPercentage", 2]
+                            },
+                            image: {
+                                $arrayElemAt: ["$variant.images.url", 0]
+                            }
+                        }
+                    }
+                ],
+                totalCount: [{ $count: "total" }]
+            }
+        }
+    ];
+
+    const result = await Inventory.aggregate(pipeline);
+
+    const data = result[0]?.data || [];
+    const total = result[0]?.totalCount[0]?.total || 0;
+
+    res.status(200).json({
+        success: true,
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        count: data.length,
+        data
+    });
+});

@@ -29,7 +29,7 @@ const AdminLayout = () => {
   const [isProductOpen, setIsProductOpen] = useState(false);
   const [isMembersOpen, setIsMembersOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
+  const [isEcommerceOpen, setIsEcommerceOpen] = useState(false);
   // Close sidebar on route change (Mobile)
   useEffect(() => {
     setIsSidebarOpen(false);
@@ -151,7 +151,26 @@ const AdminLayout = () => {
               </>
             )}
           </NavLink>
+          {/* ecommerce Dropdown */}
+          <div className="space-y-1">
+            <button
+              onClick={() => setIsEcommerceOpen(!isEcommerceOpen)}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl transition-all duration-200 font-bold ${isSettingsOpen ? 'bg-slate-50 text-slate-900' : 'text-slate-600 hover:bg-slate-100'}`}
+            >
+              <div className="flex items-center gap-3">
+                <Settings size={18} className={isEcommerceOpen ? 'text-[#7e2827]' : 'text-slate-400'} />
+                <span>E Commerce</span>
+              </div>
+              <ChevronRight size={14} className={`transition-transform duration-300 ${isEcommerceOpen ? 'rotate-90 text-[#7e2827]' : 'text-slate-300'}`} />
+            </button>
 
+            {isEcommerceOpen && (
+              <div className="ml-2 border-l-2 border-slate-100 space-y-1 mt-1">
+                <NavLink to="/admin/ecommerce/coupon-manage" className={subLinkStyle}>Coupon Manage </NavLink>
+
+              </div>
+            )}
+          </div>
           {/* Settings Dropdown */}
           <div className="space-y-1">
             <button
