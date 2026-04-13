@@ -6,6 +6,7 @@ import mongoose from "mongoose";
 import connection from "../config/redis.js";
 import Inventory from "../models/inventoryModel.js";
 import uploadToS3, { deleteFromS3 } from "../services/s3Services.js";
+import ProductSuggestionModel from "../models/ProductSuggestionModel.js";
 
 export const createProduct = asyncHandler(async (req, res, next) => {
     const session = await mongoose.startSession();
@@ -992,5 +993,41 @@ export const getProductByCategoryGroup = asyncHandler(async (req, res, next) => 
         total,
         count: data.length,
         data
+    });
+});
+
+
+export const addSuggestionForAdmin = asyncHandler(async (req, res, next) => {
+    const userId = req.user._id;
+
+    const { name, brand = "", note = "" } = req.body;
+
+    if (!name) {
+        return next(new errorHandler("Product name is required", 400));
+    }
+
+    const exists = await ProductSuggestionModel.findOne({
+        userId,
+        name
+    });
+
+    if (exists) {
+        return res.json({
+            success: true,
+            message: "Already suggested"
+        });
+    }
+
+    const suggestion = await ProductSuggestionModel.create({
+        userId,
+        name,
+        brand,
+        note
+    });
+
+    res.status(201).json({
+        success: true,
+        message: "Suggestion submitted successfully",
+        data: suggestion
     });
 });

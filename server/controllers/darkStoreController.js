@@ -35,19 +35,19 @@ export const createDarkStore = asyncHandler(async (req, res, next) => {
     res.status(201).json({
         success: true,
         message: "Dark store created successfully",
-        data : store
+        data: store
     });
 
 });
 
-export const getAllDarkStore = asyncHandler(async(req, res, next)=>{
+export const getAllDarkStore = asyncHandler(async (req, res, next) => {
 
     const stores = await Store.find({}).select("-password");
 
     res.status(200).json({
-        success : true,
-        message : "Store fetched successfully",
-        data : stores
+        success: true,
+        message: "Store fetched successfully",
+        data: stores
     })
 })
 
@@ -108,7 +108,7 @@ export const getNearestStore = asyncHandler(async (req, res, next) => {
         return next(new errorHandler("Latitude and longitude are required", 400));
     }
 
-    const store = await Store.findOne({
+    let store = await Store.findOne({
         isActive: true,
         location: {
             $near: {
@@ -125,7 +125,7 @@ export const getNearestStore = asyncHandler(async (req, res, next) => {
         return next(new errorHandler("No store found nearby", 404));
     }
 
-    const distance = getDistance(
+    let distance = getDistance(
         lat,
         lng,
         store.location.coordinates[1],
@@ -133,7 +133,18 @@ export const getNearestStore = asyncHandler(async (req, res, next) => {
     );
 
     if (distance > store.serviceRadius) {
-        return next(new errorHandler("Service not available in your area", 400));
+
+        store = await Store.findOne({ email: "cpt@kuruvi.com" })
+            .select("name location serviceRadius email")
+            .lean();
+        distance = getDistance(
+            lat,
+            lng,
+            store.location.coordinates[1],
+            store.location.coordinates[0]
+        );
+
+        // return next(new errorHandler("Service not available in your area", 400));
     }
 
     const eta = calculateETA(distance);
