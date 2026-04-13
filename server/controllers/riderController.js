@@ -3,6 +3,7 @@ import { errorHandler } from "../utilities/errorHandler.utils.js";
 import { asyncHandler } from "../utilities/asyncHandler.utils.js";
 import Rider from "../models/riderModel.js";
 import Order from "../models/orderModel.js";
+import { riderSockets } from "../socketStore.js";
 
 export const getRiderProfile = asyncHandler(async (req, res, next) => {
     const riderId = req.user._id;
@@ -280,3 +281,121 @@ export const getAvailableRiders = asyncHandler(async (req, res, next)=>{
         success : true
     })
 })
+
+export const getAvailableOrders = asyncHandler(async (req, res, next) => {
+
+    let { page = 1, limit = 10 } = req.query;
+
+    page = Number(page);
+    limit = Number(limit);
+
+    const skip = (page - 1) * limit;
+
+    const orders = await Order.find({
+        status: { $in: ["CONFIRMED", "PACKING"] },
+        riderId: null
+    })
+    .populate("storeId", "name location")
+    .populate("userId", "name")
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
+
+    const total = await Order.countDocuments({
+        status: { $in: ["CONFIRMED", "PACKING"] },
+        riderId: null
+    });
+
+    res.status(200).json({
+        success: true,
+        page,
+        limit,
+        total,
+        count: orders.length,
+        data: orders
+    });
+});
+
+export const acceptOrder = asyncHandler(async (req, res, next) => {
+    const riderId = req.user._id;
+    const { orderId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+        return next(new errorHandler("Invalid order id", 400));
+    }
+
+    const order = await Order.findOneAndUpdate(
+        {
+            _id: orderId,
+            riderId: null,
+            status: { $in: ["CONFIRMED", "PACKING"] }
+        },
+        {
+            riderId,
+            acceptedAt: new Date() 
+        },
+        { new: true }
+    );
+
+    if (!order) {
+        return next(new errorHandler("Order already assigned", 400));
+    }
+
+    const io = req.app.get("io");
+
+    io.to(`user_${order.userId}`).emit("order_rider_assigned", {
+        orderId: order._id,
+        riderId
+    });
+
+    io.to(`store_${order.storeId}`).emit("order_assigned", {
+        orderId: order._id,
+        riderId
+    });
+
+    const riderSocketId = riderSockets.get(riderId.toString());
+    if (riderSocketId) {
+        io.sockets.sockets.get(riderSocketId)?.join(`order_${order._id}`);
+    }
+
+    res.status(200).json({
+        success: true,
+        message: "Order accepted successfully",
+        data: order
+    });
+});
+
+export const pickupOrder = asyncHandler(async (req, res, next) => {
+    const riderId = req.user._id;
+    const { orderId } = req.params;
+
+    const order = await Order.findOneAndUpdate(
+        {
+            _id: orderId,
+            riderId,
+            status: { $in: ["CONFIRMED", "PACKING"] }
+        },
+        {
+            status: "OUT_FOR_DELIVERY",
+            pickedAt: new Date()
+        },
+        { new: true }
+    );
+
+    if (!order) {
+        return next(new errorHandler("Order not found or not assigned", 404));
+    }
+
+    const io = req.app.get("io");
+
+    io.to(`user_${order.userId}`).emit("order_status_update", {
+        orderId,
+        status: "OUT_FOR_DELIVERY"
+    });
+
+    res.status(200).json({
+        success: true,
+        message: "Order picked and out for delivery",
+        data: order
+    });
+});

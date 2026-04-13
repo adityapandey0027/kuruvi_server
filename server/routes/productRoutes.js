@@ -11,7 +11,7 @@ productRoutes.get("/:storeId/products-cats", getProductByCategoryGroup);
 
 productRoutes.post("/variant", isAuth, upload.array('image', 6), createVariant);
 
-productRoutes.get("/product-variant/:id", getProductWithVariantById);
+productRoutes.get("/:storeId/product-variant/:id", getProductWithVariantById);
 // suggest product
 productRoutes.post("/user/suggestion", isAuth, addSuggestionForAdmin);
 
