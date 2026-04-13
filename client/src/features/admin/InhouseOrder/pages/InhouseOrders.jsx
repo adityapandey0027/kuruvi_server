@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import OrderTable from '../dashboard/components/OrderTable';
 import { LayoutList, Search, Calendar as CalendarIcon, ArrowUpRight, PackageCheck, Timer, XCircle, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import DatePicker from 'react-datepicker';
+import OrderTable from '../components/OrderTable';
 import "react-datepicker/dist/react-datepicker.css";
 import { toast } from 'react-toastify';
-import API from "../../../api/axios";
+import API from '../../../../api/axios';
 
 const InhouseOrders = () => {
   const [orders, setOrders] = useState([]);

@@ -191,7 +191,6 @@ const AdminLayout = () => {
                 <NavLink to="/admin/settings/banner/brand" className={subLinkStyle}>Brand Banner </NavLink>
                 <NavLink to="/admin/settings/contacts" className={subLinkStyle}>Contact Info </NavLink>
 
-
               </div>
             )}
           </div>

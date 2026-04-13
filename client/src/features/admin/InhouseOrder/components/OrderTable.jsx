@@ -2,15 +2,14 @@ import React from 'react';
 import { Link } from 'react-router-dom'; // Link import karna zaroori hai
 
 
-
-
 const OrderTable = ({ orders }) => {
+  console.log(orders);
   return (
     <div className="overflow-x-auto bg-white rounded-xl shadow-sm border border-slate-200">
       <table className="w-full text-left border-collapse">
         <thead>
           <tr className="bg-slate-50 border-b border-slate-200">
-            <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Order ID</th>
+            <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500"> ID</th>
             <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Customer</th>
             <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Status</th>
             <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Amount</th>
@@ -20,7 +19,7 @@ const OrderTable = ({ orders }) => {
         <tbody className="divide-y divide-slate-100">
           {orders.map((order) => (
             <tr key={order.id} className="hover:bg-slate-50/50 transition-colors group">
-              <td className="px-6 py-4 text-sm font-bold text-slate-700">#{order.id}</td>
+              <td className="px-6 py-4 text-sm font-bold text-slate-700">{order.orderId}</td>
               <td className="px-6 py-4 text-sm text-slate-600 font-medium">{order.customer}</td>
               <td className="px-6 py-4">
                 <span className={`
@@ -32,6 +31,7 @@ const OrderTable = ({ orders }) => {
                   {order.status}
                 </span>
               </td>
+
               <td className="px-6 py-4 text-sm font-bold text-slate-900">₹{order.amount}</td>
               <td className="px-6 py-4 text-right">
                 {/* Button ki jagah Link use karein taaki OrderDetail page par ja sakein */}

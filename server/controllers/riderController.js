@@ -274,4 +274,9 @@ export const getRiderDetails = asyncHandler(async (req, res, next) => {
     });
 });
 
+export const getAvailableRiders = asyncHandler(async (req, res, next)=>{
 
+    res.status(200).json({
+        success : true
+    })
+})

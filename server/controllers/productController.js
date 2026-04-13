@@ -756,12 +756,54 @@ export const getAllProductInApp = asyncHandler(async (req, res, next) => {
 
 export const getProductByCategoryGroup = asyncHandler(async (req, res, next) => {
     const { storeId } = req.params;
-
-    let { page = 1, limit = 20 } = req.query;
+    let { page = 1, limit = 20, q = "" } = req.query;
 
     page = Number(page);
     limit = Number(limit);
     const skip = (page - 1) * limit;
+
+    let productIds = [];
+
+    // 🔐 escape regex
+    const escapeRegex = (text) =>
+        text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    // 🔍 SEARCH
+    if (q) {
+        const products = await Product.find(
+            { $text: { $search: q } },
+            { _id: 1, score: { $meta: "textScore" } }
+        )
+            .sort({ score: -1 })
+            .limit(100);
+
+        productIds = products.map(p => p._id);
+
+        if (productIds.length === 0) {
+            const safeRegex = new RegExp(escapeRegex(q), "i");
+
+            const fallbackProducts = await Product.find({
+                $or: [
+                    { name: safeRegex },
+                    { brand: safeRegex },
+                    { tags: safeRegex }
+                ]
+            }).limit(50);
+
+            productIds = fallbackProducts.map(p => p._id);
+        }
+
+        if (productIds.length === 0) {
+            return res.status(200).json({
+                success: true,
+                page,
+                limit,
+                total: 0,
+                count: 0,
+                data: []
+            });
+        }
+    }
 
     const pipeline = [
         {
@@ -772,7 +814,7 @@ export const getProductByCategoryGroup = asyncHandler(async (req, res, next) => 
             }
         },
 
-        // Variant
+        // 🔗 Variant
         {
             $lookup: {
                 from: "variants",
@@ -783,7 +825,16 @@ export const getProductByCategoryGroup = asyncHandler(async (req, res, next) => 
         },
         { $unwind: "$variant" },
 
-        // Product
+        // 🔍 Apply search filter
+        ...(q
+            ? [{
+                $match: {
+                    "variant.productId": { $in: productIds }
+                }
+            }]
+            : []),
+
+        // 🔗 Product
         {
             $lookup: {
                 from: "products",
@@ -800,7 +851,7 @@ export const getProductByCategoryGroup = asyncHandler(async (req, res, next) => 
             }
         },
 
-        // Category
+        // 🔗 Category
         {
             $lookup: {
                 from: "categories",
@@ -816,10 +867,34 @@ export const getProductByCategoryGroup = asyncHandler(async (req, res, next) => 
             }
         },
 
-        // Sort cheapest variant
+        // 💰 Discount calc
+        {
+            $addFields: {
+                discount: { $subtract: ["$variant.mrp", "$price"] },
+                discountPercentage: {
+                    $cond: [
+                        { $gt: ["$variant.mrp", 0] },
+                        {
+                            $multiply: [
+                                {
+                                    $divide: [
+                                        { $subtract: ["$variant.mrp", "$price"] },
+                                        "$variant.mrp"
+                                    ]
+                                },
+                                100
+                            ]
+                        },
+                        0
+                    ]
+                }
+            }
+        },
+
+        // 🔥 Sort cheapest first
         { $sort: { price: 1 } },
 
-        // One product → one variant
+        // 🔥 One product → one variant (cheapest)
         {
             $group: {
                 _id: "$product._id",
@@ -828,6 +903,7 @@ export const getProductByCategoryGroup = asyncHandler(async (req, res, next) => 
         },
         { $replaceRoot: { newRoot: "$doc" } },
 
+        // 🔥 Group by category
         {
             $group: {
                 _id: {
@@ -843,17 +919,43 @@ export const getProductByCategoryGroup = asyncHandler(async (req, res, next) => 
                     $push: {
                         productId: "$product._id",
                         variantId: "$variant._id",
+
                         name: "$product.name",
                         brand: "$product.brand",
+                        description: "$product.description",
+                        tags: "$product.tags",
+
+                        // 🧾 Variant
+                        size: "$variant.size",
+                        unit: "$variant.unit",
+                        weight: "$variant.weight",
+                        sku: "$variant.sku",
+
+                        // 💰 Pricing
                         price: "$price",
                         mrp: "$variant.mrp",
-                        image: { $arrayElemAt: ["$variant.images.url", 0] }
+                        discount: "$discount",
+                        discountPercentage: {
+                            $round: ["$discountPercentage", 2]
+                        },
+
+                        // 📦 Inventory
+                        stock: "$stock",
+
+                        // 🏷️ Flags
+                        isBestDeal: { $gte: ["$discountPercentage", 20] },
+                        isLowStock: { $lte: ["$stock", 5] },
+
+                        // 🖼️ Image
+                        image: {
+                            $arrayElemAt: ["$variant.images.url", 0]
+                        }
                     }
                 }
             }
         },
 
-        // Flatten structure
+        // 🔥 Clean output
         {
             $project: {
                 _id: 0,
@@ -864,12 +966,9 @@ export const getProductByCategoryGroup = asyncHandler(async (req, res, next) => 
             }
         },
 
-        // Sort categories
-        {
-            $sort: { categoryName: 1 }
-        },
+        { $sort: { categoryName: 1 } },
 
-        // Pagination
+        // 📦 Pagination
         {
             $facet: {
                 data: [

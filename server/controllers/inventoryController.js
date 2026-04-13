@@ -210,7 +210,7 @@ export const createInventory = asyncHandler(async (req, res, next) => {
     variantId,
     price,
     stock = 0,
-    lowStock = 5,
+    lowStock = 0,
     batchNumber,
     expiryDate
   } = req.body;

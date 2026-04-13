@@ -32,6 +32,8 @@ import favoriteRoute from './routes/favoriteRoutes.js';
 import couponRoute from './routes/couponRoutes.js';
 import deliveryConfigRoutes from './routes/deliveryConfigRoutes.js';
 import contactRoute from './routes/contactRoutes.js';
+import notificationRouter from './routes/notificationRoutes.js';
+import systemRoute from './routes/systemRoutes.js';
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -157,6 +159,8 @@ app.use("/v1/favorites", favoriteRoute);
 app.use("/v1/coupons", couponRoute);
 app.use("/v1/delivery", deliveryConfigRoutes);
 app.use("/v1/contacts", contactRoute);
+app.use("/v1/notifications", notificationRouter);
+app.use("/v1/systems", systemRoute);
 // Health
 app.get("/", (req, res) => {
   res.send("Server is running");

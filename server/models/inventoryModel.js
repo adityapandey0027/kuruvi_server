@@ -46,7 +46,7 @@ const inventorySchema = new mongoose.Schema({
   
   lowStockThreshold: {
     type: Number,
-    default: 5,
+    default: 0,
   },
 
   isAvailable: {
