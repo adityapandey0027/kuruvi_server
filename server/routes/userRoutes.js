@@ -1,6 +1,6 @@
 import express from "express";
 import { isAuth } from "../middlewares/isAuthMiddleware.js";
-import { createUserAddress, deleteUserAddress, deleteUserProfile, getUserAddress, getUserProfile, updateUserAddress, updateUserProfile } from "../controllers/userController.js";
+import { createUserAddress, createWalletRechargeOrder, deleteUserAddress, deleteUserProfile, getUserAddress, getUserProfile, getWallet, updateUserAddress, updateUserProfile, verifyWalletRecharge } from "../controllers/userController.js";
 import { addCartItem, clearCart, getCartItem, removeCartItem } from "../controllers/cartController.js";
 import upload from '../middlewares/uploadMiddleware.js';
 
@@ -15,6 +15,11 @@ userRoutes.get("/cart", isAuth, getCartItem);
 userRoutes.post("/cart/add", isAuth, addCartItem);
 userRoutes.post("/cart/remove", isAuth, removeCartItem);
 userRoutes.post("/cart/clear", isAuth, clearCart);
+
+// wallet recharge
+userRoutes.post("/wallet/create-order", isAuth, createWalletRechargeOrder);
+userRoutes.post("/wallet/verify", isAuth, verifyWalletRecharge);
+userRoutes.post("/wallet/balance", isAuth, getWallet);
 
 // address
 userRoutes.get("/address", isAuth, getUserAddress);

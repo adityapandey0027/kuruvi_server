@@ -166,13 +166,27 @@ app.set("io", io);
 // Middlewares
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://nljg1w4q-5173.inc1.devtunnels.ms",
+  "http://43.205.241.171"
+];
+
 app.use(cors({
-  origin: [
-    "http://localhost:5173",
-    "https://nljg1w4q-5173.inc1.devtunnels.ms",
-    "http://43.205.241.171"
-  ],
-  credentials: true
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true, // Required for cookies/sessions
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
 // Routes (same as yours)

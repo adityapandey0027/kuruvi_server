@@ -4,6 +4,12 @@ import User from "../models/userModel.js";
 import { asyncHandler } from "../utilities/asyncHandler.utils.js";
 import { errorHandler } from "../utilities/errorHandler.utils.js";
 import uploadToS3, { deleteFromS3 } from "../services/s3Services.js";
+import WalletModel from "../models/WalletModel.js";
+import walletTransactionMdel from "../models/walletTransactionMdel.js";
+import crypto from "crypto";
+import { razorpay } from "../config/razorpay.js";
+import WalletRecharge from "../models/WalletRechargeModel.js";
+import { creditWallet, debitWallet } from "../services/walletService.js";
 
 export const getUserProfile = asyncHandler(async (req, res, next) => {
     const userId = req.user._id;
@@ -313,5 +319,153 @@ export const deleteUserAddress = asyncHandler(async (req, res, next) => {
     res.status(200).json({
         success: true,
         message: "Address deleted successfully"
+    });
+});
+
+
+export const getWallet = asyncHandler(async (req, res, next) => {
+    const userId = req.user._id;
+
+    let wallet = await WalletModel.findOne({ userId });
+
+    if (!wallet) {
+        wallet = await WalletModel.create({ userId, balance: 0 });
+    }
+
+    res.status(200).json({
+        success: true,
+        balance: wallet.balance
+    });
+});
+
+
+export const getWalletTransactions = asyncHandler(async (req, res) => {
+    const userId = req.user._id;
+
+    const transactions = await walletTransactionMdel.find({ userId })
+        .sort({ createdAt: -1 })
+        .limit(50);
+
+    res.status(200).json({
+        success: true,
+        data: transactions
+    });
+});
+
+export const createWalletRechargeOrder = asyncHandler(async (req, res, next) => {
+    const { amount } = req.body;
+    const userId = req.user._id;
+
+    if (!amount || isNaN(amount) || amount < 10) {
+        return next(new errorHandler("Minimum recharge ₹10", 400));
+    }
+
+    const amountInPaise = Math.round(Number(amount) * 100);
+
+    try {
+        const existing = await WalletRecharge.findOne({
+            userId,
+            status: "PENDING",
+            createdAt: { $gte: new Date(Date.now() - 5 * 60 * 1000) } // last 5 min
+        });
+
+        if (existing) {
+            return res.status(200).json({
+                success: true,
+                message: "Recharge already initiated",
+                order: {
+                    id: existing.razorpayOrderId,
+                    amount: existing.amount * 100,
+                    currency: "INR"
+                }
+            });
+        }
+
+        const razorpayOrder = await razorpay.orders.create({
+            amount: amountInPaise,
+            currency: "INR",
+            receipt: `wallet_${Date.now()}`,
+            notes: {
+                type: "WALLET_RECHARGE",
+                userId: userId.toString()
+            }
+        });
+
+        await WalletRecharge.create({
+            userId,
+            razorpayOrderId: razorpayOrder.id,
+            amount: Number(amount),
+            status: "PENDING"
+        });
+
+        res.status(200).json({
+            success: true,
+            message: "Wallet recharge order created",
+            order: {
+                id: razorpayOrder.id,
+                amount: razorpayOrder.amount,
+                currency: razorpayOrder.currency
+            }
+        });
+
+    } catch (err) {
+        console.error("Wallet Razorpay Error:", err);
+
+        return next(new errorHandler("Failed to create wallet order", 500));
+    }
+});
+
+
+export const verifyWalletRecharge = asyncHandler(async (req, res, next) => {
+    const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
+    const userId = req.user._id;
+
+    if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+        return next(new errorHandler("Missing payment details", 400));
+    }
+
+    const generatedSignature = crypto
+        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+        .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+        .digest("hex");
+
+    if (generatedSignature !== razorpaySignature) {
+        return next(new errorHandler("Invalid payment signature", 400));
+    }
+
+    const recharge = await WalletRecharge.findOne({
+        razorpayOrderId,
+        userId
+    });
+
+    if (!recharge) {
+        return next(new errorHandler("Recharge record not found", 404));
+    }
+
+    if (recharge.status === "SUCCESS") {
+        return res.status(200).json({
+            success: true,
+            message: "Already processed"
+        });
+    }
+
+    await creditWallet(
+        userId,
+        recharge.amount,
+        "WALLET_RECHARGE",
+        null
+    );
+
+    recharge.status = "SUCCESS";
+    recharge.razorpayPaymentId = razorpayPaymentId;
+    recharge.razorpaySignature = razorpaySignature;
+
+    await recharge.save();
+
+
+    res.status(200).json({
+        success: true,
+        message: "Wallet recharged successfully",
+        amount: recharge.amount
     });
 });
