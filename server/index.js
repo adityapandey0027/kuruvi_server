@@ -8,6 +8,7 @@ import { Server } from "socket.io";
 
 import { connectDB } from './config/db.js';
 import { errorMiddleware } from './middlewares/errorMiddleware.js';
+
 import {
   userSockets,
   riderSockets,
@@ -15,7 +16,7 @@ import {
   riderLocations
 } from "./socketStore.js";
 
-// Routes
+// Routes (same as yours)
 import authRouter from './routes/authRoutes.js';
 import categoryRoute from './routes/categoryRoutes.js';
 import storeRoute from './routes/storeRoute.js';
@@ -38,10 +39,9 @@ import systemRoute from './routes/systemRoutes.js';
 const app = express();
 const port = process.env.PORT || 8080;
 
-// HTTP server
 const server = http.createServer(app);
 
-//  Socket.io
+// 🚀 SOCKET.IO
 const io = new Server(server, {
   cors: {
     origin: [
@@ -53,7 +53,6 @@ const io = new Server(server, {
   }
 });
 
-
 io.on("connection", (socket) => {
   try {
     const { userId, role, storeId } = socket.handshake.query;
@@ -63,44 +62,61 @@ io.on("connection", (socket) => {
       return;
     }
 
-    socket.data.userId = userId;
-    socket.data.role = role;
-    socket.data.storeId = storeId || null;
+    socket.data = {
+      userId,
+      role,
+      storeId: storeId || null
+    };
 
-    //  USER
+    console.log(`🔌 ${role} connected: ${userId}`);
+
+    // ================= USER =================
     if (role === "user") {
       userSockets.set(userId, socket.id);
+
+      // ✅ IMPORTANT (for notifications)
+      socket.join(`user_${userId}`);
     }
 
-    // RIDER ( no store room join for riders)
+    // ================= RIDER =================
     if (role === "rider") {
       riderSockets.set(userId, socket.id);
 
-      // Rider sends periodic location updates
       socket.on("update_rider_location", ({ lat, lng }) => {
-        if (typeof lat !== "number" || typeof lng !== "number") return;
+        if (
+          typeof lat !== "number" ||
+          typeof lng !== "number" ||
+          lat < -90 || lat > 90 ||
+          lng < -180 || lng > 180
+        ) return;
 
-        riderLocations.set(userId, { lat, lng, ts: Date.now() });
+        riderLocations.set(userId, {
+          lat,
+          lng,
+          ts: Date.now()
+        });
       });
     }
 
-    // STORE
+    // ================= STORE =================
     if (role === "store") {
       storeSockets.set(userId, socket.id);
 
       if (storeId) {
         socket.join(`store_${storeId}`);
-        console.log(`Store connected: ${storeId}`);
+        console.log(`🏪 Store connected: ${storeId}`);
       }
     }
 
-    //Order tracking room (user + assigned rider)
+    // ================= ORDER TRACK =================
     socket.on("join_order", (orderId) => {
       if (!orderId) return;
+
       socket.join(`order_${orderId}`);
+      console.log(`📦 Joined order room: ${orderId}`);
     });
 
-    // Live tracking broadcast 
+    // ================= LIVE LOCATION =================
     socket.on("update_location", ({ orderId, lat, lng }) => {
       if (!orderId) return;
 
@@ -111,23 +127,40 @@ io.on("connection", (socket) => {
       });
     });
 
+    // ================= DISCONNECT =================
     socket.on("disconnect", () => {
       const { userId, role } = socket.data;
 
+      console.log(`❌ ${role} disconnected: ${userId}`);
+
       if (role === "user") userSockets.delete(userId);
+
       if (role === "rider") {
         riderSockets.delete(userId);
-        riderLocations.delete(userId); // cleanup
+        riderLocations.delete(userId);
       }
+
       if (role === "store") storeSockets.delete(userId);
     });
 
   } catch (err) {
-    console.error("Socket Error:", err);
+    console.error("Socket Error:", err.message);
     socket.disconnect();
   }
 });
 
+// 🔥 CLEANUP STALE RIDERS (VERY IMPORTANT)
+setInterval(() => {
+  const now = Date.now();
+
+  for (const [riderId, loc] of riderLocations.entries()) {
+    if (now - loc.ts > 15000) {
+      riderLocations.delete(riderId);
+    }
+  }
+}, 10000);
+
+// ================= APP =================
 app.set("io", io);
 
 // Middlewares
@@ -142,7 +175,7 @@ app.use(cors({
   credentials: true
 }));
 
-// Routes
+// Routes (same as yours)
 app.use("/v1/auth", authRouter);
 app.use("/v1/categories", categoryRoute);
 app.use("/v1/stores", storeRoute);
@@ -161,6 +194,7 @@ app.use("/v1/delivery", deliveryConfigRoutes);
 app.use("/v1/contacts", contactRoute);
 app.use("/v1/notifications", notificationRouter);
 app.use("/v1/systems", systemRoute);
+
 // Health
 app.get("/", (req, res) => {
   res.send("Server is running");

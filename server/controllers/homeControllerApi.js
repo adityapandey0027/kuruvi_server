@@ -410,8 +410,10 @@ export const getlowestPricedProducts = asyncHandler(async (req, res, next) => {
 
 export const getMaxDiscountProducts = asyncHandler(async (req, res, next) => {
     const { storeId } = req.params;
-    const { limit = 10, page = 1 } = req.query;
+    let { limit = 10, page = 1 } = req.query;
 
+    page = Number(page);
+    limit = Number(limit);
     const skip = (page - 1) * limit;
 
     const pipeline = [
@@ -451,7 +453,7 @@ export const getMaxDiscountProducts = asyncHandler(async (req, res, next) => {
             }
         },
 
-        // 🔥 Discount Calculation
+        // 💰 Discount Calculation
         {
             $addFields: {
                 discountAmount: { $subtract: ["$variant.mrp", "$price"] },
@@ -460,7 +462,12 @@ export const getMaxDiscountProducts = asyncHandler(async (req, res, next) => {
                         { $gt: ["$variant.mrp", 0] },
                         {
                             $multiply: [
-                                { $divide: [{ $subtract: ["$variant.mrp", "$price"] }, "$variant.mrp"] },
+                                {
+                                    $divide: [
+                                        { $subtract: ["$variant.mrp", "$price"] },
+                                        "$variant.mrp"
+                                    ]
+                                },
                                 100
                             ]
                         },
@@ -470,7 +477,7 @@ export const getMaxDiscountProducts = asyncHandler(async (req, res, next) => {
             }
         },
 
-        // 🔥 Sort highest discount first
+        // 🔥 STEP 1: SORT → best discount first
         {
             $sort: {
                 discountAmount: -1,
@@ -478,7 +485,7 @@ export const getMaxDiscountProducts = asyncHandler(async (req, res, next) => {
             }
         },
 
-        // 🔥 One product → best discounted variant
+        // 🔥 STEP 2: GROUP → pick best variant per product
         {
             $group: {
                 _id: "$product._id",
@@ -487,25 +494,52 @@ export const getMaxDiscountProducts = asyncHandler(async (req, res, next) => {
         },
         { $replaceRoot: { newRoot: "$doc" } },
 
-        // 🔥 Pagination
+        // 🔥 STEP 3: RE-SORT (CRITICAL)
+        {
+            $sort: {
+                discountAmount: -1,
+                discountPercentage: -1
+            }
+        },
+
+        // 📦 Pagination + Data
         {
             $facet: {
                 data: [
-                    { $skip: Number(skip) },
-                    { $limit: Number(limit) },
+                    { $skip: skip },
+                    { $limit: limit },
+
                     {
                         $project: {
                             _id: 0,
+
                             productId: "$product._id",
                             variantId: "$variant._id",
+
                             name: "$product.name",
                             brand: "$product.brand",
+                            description: "$product.description",
+
+                            // 🧾 Variant
+                            size: "$variant.size",
+                            unit: "$variant.unit",
+                            weight: "$variant.weight",
+
+                            // 💰 Pricing
                             price: "$price",
                             mrp: "$variant.mrp",
                             discount: "$discountAmount",
                             discountPercentage: {
                                 $round: ["$discountPercentage", 2]
                             },
+
+                            // 📦 Stock
+                            stock: "$stock",
+
+                            // 🏷️ Flag
+                            isBestDeal: { $gte: ["$discountPercentage", 20] },
+
+                            // 🖼️ Image
                             image: {
                                 $arrayElemAt: ["$variant.images.url", 0]
                             }
@@ -524,9 +558,130 @@ export const getMaxDiscountProducts = asyncHandler(async (req, res, next) => {
 
     res.status(200).json({
         success: true,
-        page: Number(page),
-        limit: Number(limit),
+        page,
+        limit,
         total,
+        count: data.length,
+        data
+    });
+});
+
+export const getSuggestedProducts = asyncHandler(async (req, res, next) => {
+    const { storeId, productId } = req.params;
+    const { limit = 10 } = req.query;
+
+    const product = await Product.findById(productId);
+
+    if (!product) {
+        return next(new errorHandler("Product not found", 404));
+    }
+
+    const pipeline = [
+        {
+            $match: {
+                storeId: new mongoose.Types.ObjectId(storeId),
+                isAvailable: true,
+                stock: { $gt: 0 }
+            }
+        },
+
+        // 🔗 Variant
+        {
+            $lookup: {
+                from: "variants",
+                localField: "variantId",
+                foreignField: "_id",
+                as: "variant"
+            }
+        },
+        { $unwind: "$variant" },
+
+        // 🔗 Product
+        {
+            $lookup: {
+                from: "products",
+                localField: "variant.productId",
+                foreignField: "_id",
+                as: "product"
+            }
+        },
+        { $unwind: "$product" },
+
+        {
+            $match: {
+                "product.isActive": true,
+                "product._id": { $ne: product._id }, // ❌ exclude current
+                "product.categoryId": product.categoryId // ✅ same category
+            }
+        },
+
+        // 💰 Discount
+        {
+            $addFields: {
+                discountPercentage: {
+                    $cond: [
+                        { $gt: ["$variant.mrp", 0] },
+                        {
+                            $multiply: [
+                                {
+                                    $divide: [
+                                        { $subtract: ["$variant.mrp", "$price"] },
+                                        "$variant.mrp"
+                                    ]
+                                },
+                                100
+                            ]
+                        },
+                        0
+                    ]
+                }
+            }
+        },
+
+        // 🔥 Sort: best mix (discount + price)
+        {
+            $sort: {
+                discountPercentage: -1,
+                price: 1
+            }
+        },
+
+        // 🔥 One variant per product
+        {
+            $group: {
+                _id: "$product._id",
+                doc: { $first: "$$ROOT" }
+            }
+        },
+        { $replaceRoot: { newRoot: "$doc" } },
+
+        // 🔥 Limit
+        { $limit: Number(limit) },
+
+        // 🎯 Final output
+        {
+            $project: {
+                _id: 0,
+                productId: "$product._id",
+                variantId: "$variant._id",
+                name: "$product.name",
+                brand: "$product.brand",
+                price: "$price",
+                mrp: "$variant.mrp",
+                discountPercentage: {
+                    $round: ["$discountPercentage", 2]
+                },
+                image: {
+                    $arrayElemAt: ["$variant.images.url", 0]
+                }
+            }
+        }
+    ];
+
+    const data = await Inventory.aggregate(pipeline);
+
+    res.status(200).json({
+        success: true,
         count: data.length,
         data
     });

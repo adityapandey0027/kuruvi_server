@@ -1,7 +1,7 @@
 import express from 'express';
 import upload from '../middlewares/uploadMiddleware.js';
 import { isAdmin } from '../middlewares/isAuthMiddleware.js';
-import { getlowestPricedProducts, getMaxDiscountProducts, getMostShoppedProducts } from '../controllers/homeControllerApi.js';
+import { getlowestPricedProducts, getMaxDiscountProducts, getMostShoppedProducts, getSuggestedProducts } from '../controllers/homeControllerApi.js';
 
 const homeRoutes = express.Router();
 
@@ -9,4 +9,6 @@ const homeRoutes = express.Router();
 homeRoutes.get("/:storeId/most-shopped", getMostShoppedProducts);
 homeRoutes.get("/:storeId/lowest-priced", getlowestPricedProducts);
 homeRoutes.get("/:storeId/max-discount", getMaxDiscountProducts);
+homeRoutes.get("/:storeId/suggest/:productId", getSuggestedProducts);
+
 export default homeRoutes; 
