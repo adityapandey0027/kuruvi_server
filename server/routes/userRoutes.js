@@ -19,7 +19,7 @@ userRoutes.post("/cart/clear", isAuth, clearCart);
 // wallet recharge
 userRoutes.post("/wallet/create-order", isAuth, createWalletRechargeOrder);
 userRoutes.post("/wallet/verify", isAuth, verifyWalletRecharge);
-userRoutes.post("/wallet/balance", isAuth, getWallet);
+userRoutes.get("/wallet/balance", isAuth, getWallet);
 
 // address
 userRoutes.get("/address", isAuth, getUserAddress);
