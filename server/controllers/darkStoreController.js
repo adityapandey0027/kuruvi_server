@@ -134,7 +134,7 @@ export const getNearestStore = asyncHandler(async (req, res, next) => {
 
     if (distance > store.serviceRadius) {
 
-        store = await Store.findOne({ email: "cpt@kuruvi.com" })
+        store = await Store.findOne({ email: "epds@gmail.com" })
             .select("name location serviceRadius email")
             .lean();
         distance = getDistance(

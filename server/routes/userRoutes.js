@@ -9,7 +9,7 @@ const userRoutes = express.Router();
 userRoutes.get("/profile", isAuth, getUserProfile);
 userRoutes.put("/profile", isAuth, upload.single("image"), updateUserProfile);
 userRoutes.delete("/profile", isAuth, deleteUserProfile);
-userRoutes
+
 // cart routes
 userRoutes.get("/cart", isAuth, getCartItem);
 userRoutes.post("/cart/add", isAuth, addCartItem);
