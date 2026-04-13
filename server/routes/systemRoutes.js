@@ -1,5 +1,5 @@
 import express from 'express';
-import { getNotifications } from '../controllers/notificationController.js';
+import { createNotification, getNotifications } from '../controllers/notificationController.js';
 import { isAdmin, isAuth, isRider, isStoreOwner } from '../middlewares/isAuthMiddleware.js';
 import { getAllPoliciesAdmin, getPolicyAdminDetail, savePolicy } from '../controllers/systemController.js';
 
@@ -14,5 +14,17 @@ systemRoute.get("/policy/all", isAdmin, getAllPoliciesAdmin);
 systemRoute.get("/admin/:type/:receiver", isAdmin, getPolicyAdminDetail);
 systemRoute.post("/policies/save", isAdmin, savePolicy);
 
+systemRoute.post("/test", isAuth, async (req, res) => {
+    await createNotification({
+        receiverId: req.user?._id,
+        receiverType: "user",
+        title: "Order Placed",
+        message: "Your order is placed",
+        type: "ORDER",
+        orderId: "ODFJF"
+    });
+
+    res.send("done");
+});
 
 export default systemRoute;
