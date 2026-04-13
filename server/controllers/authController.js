@@ -20,7 +20,7 @@ export const loginWithOtp = asyncHandler(async (req, res, next) => {
     const otp = Math.floor(1000 + Math.random() * 9000);
 
     // not sent sms for dev
-    //await sendSms(mobile, otp);
+    await sendSms(mobile, otp);
 
     // save otp in redis
     const otpKey = `${redisOTPKey}:${mobile}`;
