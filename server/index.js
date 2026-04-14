@@ -41,16 +41,14 @@ const port = process.env.PORT || 8080;
 
 const server = http.createServer(app);
 
-// 🚀 SOCKET.IO
 const io = new Server(server, {
-  cors: {
-    origin: [
-      "http://localhost:5173",
-      "https://nljg1w4q-5173.inc1.devtunnels.ms",
-      "http://43.205.241.171"
-    ],
-    credentials: true
-  }
+  origin: [
+    "http://localhost:5173",
+    "https://nljg1w4q-5173.inc1.devtunnels.ms",
+    "http://43.205.241.171:5173"
+  ],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+  credentials: true
 });
 
 io.on("connection", (socket) => {
@@ -177,7 +175,7 @@ app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
-    
+
     if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
       callback(null, true);
     } else {
@@ -200,7 +198,7 @@ app.use("/v1/orders", orderRouter);
 app.use("/v1/users", userRoutes);
 app.use("/v1/riders", riderRouter);
 app.use("/v1/banners", bannerRoute);
-app.use("/v1/home", homeRoutes); 
+app.use("/v1/home", homeRoutes);
 app.use("/v1/cart", cartRoute);
 app.use("/v1/favorites", favoriteRoute);
 app.use("/v1/coupons", couponRoute);

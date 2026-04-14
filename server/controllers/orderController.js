@@ -98,7 +98,7 @@ export const createOrder = asyncHandler(async (req, res, next) => {
             deliveryFee,
             totalAmount,
             paymentOption,
-            status: "PLACED",
+            status: paymentOption === "COD" ? "CONFIRMED" : "PLACED",
             paymentStatus: "PENDING"
         }], { session });
 

@@ -5,6 +5,9 @@ import Rider from "../models/riderModel.js";
 import Order from "../models/orderModel.js";
 import { riderSockets } from "../socketStore.js";
 import mongoose from "mongoose";
+import { sendSms } from "../utilities/sendSms.utils.js";
+import connection from "../config/redis.js";
+
 export const getRiderProfile = asyncHandler(async (req, res, next) => {
     const riderId = req.user._id;
 
@@ -179,8 +182,8 @@ export const getAllRiders = asyncHandler(async (req, res, next) => {
     limit = Number(limit);
 
     const skip = (page - 1) * limit;
-    
-    let filter= {};
+
+    let filter = {};
     // const filter = {
     //     isActive: true
     // };
@@ -238,30 +241,26 @@ export const getRiderDetails = asyncHandler(async (req, res, next) => {
     limit = Number(limit);
     const skip = (page - 1) * limit;
 
-    // 🔐 Validate ID
     if (!mongoose.Types.ObjectId.isValid(riderId)) {
         return next(new errorHandler("Invalid rider id", 400));
     }
 
-    // 👤 Rider (FULL DETAILS)
     const rider = await Rider.findById(riderId).lean();
 
     if (!rider) {
         return next(new errorHandler("Rider not found", 404));
     }
 
-    // 🔐 MASK SENSITIVE DATA (important)
-    if (rider.bankDetails?.accountNumber) {
-        rider.bankDetails.accountNumber =
-            "XXXX" + rider.bankDetails.accountNumber.slice(-4);
-    }
+    // if (rider.bankDetails?.accountNumber) {
+    //     rider.bankDetails.accountNumber =
+    //         "XXXX" + rider.bankDetails.accountNumber.slice(-4);
+    // }
 
-    if (rider.documents?.aadhaarNumber) {
-        rider.documents.aadhaarNumber =
-            "XXXX-XXXX-" + rider.documents.aadhaarNumber.slice(-4);
-    }
+    // if (rider.documents?.aadhaarNumber) {
+    //     rider.documents.aadhaarNumber =
+    //         "XXXX-XXXX-" + rider.documents.aadhaarNumber.slice(-4);
+    // }
 
-    // 📦 Orders
     const orders = await Order.find({ riderId })
         .select("orderId status totalAmount deliveryFee createdAt")
         .sort({ createdAt: -1 })
@@ -271,7 +270,6 @@ export const getRiderDetails = asyncHandler(async (req, res, next) => {
 
     const totalOrders = await Order.countDocuments({ riderId });
 
-    // 📊 Stats (DELIVERED ONLY)
     const statsAgg = await Order.aggregate([
         {
             $match: {
@@ -364,11 +362,11 @@ export const getAvailableOrders = asyncHandler(async (req, res, next) => {
         status: { $in: ["CONFIRMED", "PACKING"] },
         riderId: null
     })
-    .populate("storeId", "name location")
-    .populate("userId", "name")
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limit);
+        .populate("storeId", "name location")
+        .populate("userId", "name")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit);
 
     const total = await Order.countDocuments({
         status: { $in: ["CONFIRMED", "PACKING"] },
@@ -387,7 +385,7 @@ export const getAvailableOrders = asyncHandler(async (req, res, next) => {
 
 export const acceptOrder = asyncHandler(async (req, res, next) => {
     const riderId = req.user._id;
-    const { orderId } = req.params;
+    const orderId = req.params.id;
 
     if (!mongoose.Types.ObjectId.isValid(orderId)) {
         return next(new errorHandler("Invalid order id", 400));
@@ -401,7 +399,7 @@ export const acceptOrder = asyncHandler(async (req, res, next) => {
         },
         {
             riderId,
-            acceptedAt: new Date() 
+            acceptedAt: new Date()
         },
         { new: true }
     );
@@ -436,11 +434,11 @@ export const acceptOrder = asyncHandler(async (req, res, next) => {
 
 export const pickupOrder = asyncHandler(async (req, res, next) => {
     const riderId = req.user._id;
-    const { orderId } = req.params;
+    const orderId = req.params.id;
 
     const order = await Order.findOneAndUpdate(
         {
-            _id: orderId,
+            orderId: orderId,
             riderId,
             status: { $in: ["CONFIRMED", "PACKING"] }
         },
@@ -468,3 +466,153 @@ export const pickupOrder = asyncHandler(async (req, res, next) => {
         data: order
     });
 });
+
+export const getRiderCurrentOrder = asyncHandler(async (req, res, next) => {
+    const riderId = req.user._id;
+
+    const order = await Order.findOne({
+        riderId,
+        status: "OUT_FOR_DELIVERY"
+    })
+        .populate("userId", "name phone")
+        .populate("storeId", "name address");
+
+    if (!order) {
+        return res.status(200).json({
+            success: true,
+            message: "No active order",
+            order: null
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        data: order
+    });
+});
+
+export const markDeliverOrder = asyncHandler(async (req, res, next) => {
+    const riderId = req.user._id;
+    const { orderId } = req.body;
+
+    const order = await Order.findOne({ orderId })
+        .populate("addressId", "receiverPhone");
+
+    if (!order) {
+        return next(new errorHandler("Order not found", 404));
+    }
+
+    if (order.riderId.toString() !== riderId.toString()) {
+        return next(new errorHandler("Not authorized", 403));
+    }
+
+    if (order.status !== "OUT_FOR_DELIVERY") {
+        return next(new errorHandler("Order not out for delivery", 400));
+    }
+
+    if (order.paymentMethod === "COD" && order.paymentStatus !== "SUCCESS") {
+        return next(new errorHandler("Collect payment before delivery", 400));
+    }
+
+    const otp = Math.floor(1000 + Math.random() * 9000);
+
+    const otpKey = `delivery_otp:${order._id}`;
+
+    await connection.set(otpKey, otp.toString(), "EX", 300);
+
+    if (process.env.NODE_ENV === "production") {
+        await sendSms(order.addressId?.receiverPhone, ` ${otp}`);
+    }
+
+    res.status(200).json({
+        success: true,
+        message: "Delivery OTP sent to customer",
+        ...(process.env.NODE_ENV !== "production" && { otp })
+    });
+});
+
+export const verifyDeliveryOtp = asyncHandler(async (req, res, next) => {
+    const riderId = req.user._id;
+    const { orderId, otp } = req.body;
+
+    if (!otp) {
+        return next(new errorHandler("OTP required", 400));
+    }
+
+    const order = await Order.findOne({ orderId });
+
+    if (!order) {
+        return next(new errorHandler("Order not found", 404));
+    }
+
+    if (order.riderId.toString() !== riderId.toString()) {
+        return next(new errorHandler("Not authorized", 403));
+    }
+
+    const otpKey = `delivery_otp:${order._id}`;
+    const savedOtp = await connection.get(otpKey);
+
+    if (!savedOtp) {
+        return next(new errorHandler("OTP expired", 400));
+    }
+
+    if (otp.toString() !== savedOtp) {
+        return next(new errorHandler("Invalid OTP", 400));
+    }
+
+    order.status = "DELIVERED";
+    order.deliveredAt = new Date();
+
+    await order.save();
+
+    await connection.del(otpKey);
+
+    const io = req.app.get("io");
+    io.to(`user_${order.userId}`).emit("order_status_update", {
+        orderId: order._id,
+        status: "DELIVERED"
+    });
+
+    res.status(200).json({
+        success: true,
+        message: "Order delivered successfully"
+    });
+});
+
+export const getAcceptedOrders = asyncHandler(async (req, res, next) => {
+    const riderId = req.user._id;
+
+    if (!riderId) {
+        return next(new errorHandler("Unauthorized", 401));
+    }
+
+    const orders = await Order.find({
+        riderId,
+        status: {
+            $in: ["CONFIRMED", "PACKING",]
+        }
+    })
+        .populate("userId", "name phone")
+        .populate("storeId", "name address")
+        .sort({ createdAt: -1 });
+
+    res.status(200).json({
+        success: true,
+        total: orders.length,
+        orders
+    });
+});
+
+export const codOrderPaymentCollection = asyncHandler(async (req, res, next)=>{
+
+    res.status(200).json({
+        success: true
+    })
+})
+
+export const codOrderPaymentVerification = asyncHandler(async (req, res, next)=>{
+
+    res.status(200).json({
+        success: true
+    })
+})

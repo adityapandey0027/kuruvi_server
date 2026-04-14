@@ -92,6 +92,15 @@ const AdminLayout = () => {
             )}
           </NavLink>
 
+          <NavLink to="/admin/inhouse-orders" className={({ isActive }) => isActive ? activeLink : normalLink}>
+            {({ isActive }) => (
+              <>
+                <Layers size={18} className={isActive ? 'text-[#7e2827]' : 'text-slate-400 group-hover:text-slate-900'} />
+                <span>Orders</span>
+              </>
+            )}
+          </NavLink>
+
           {/* Inventory Dropdown */}
           <div className="space-y-1">
             <button
@@ -143,14 +152,7 @@ const AdminLayout = () => {
             )}
           </NavLink>
 
-          <NavLink to="/admin/inhouse-orders" className={({ isActive }) => isActive ? activeLink : normalLink}>
-            {({ isActive }) => (
-              <>
-                <Layers size={18} className={isActive ? 'text-[#7e2827]' : 'text-slate-400 group-hover:text-slate-900'} />
-                <span>Logistics</span>
-              </>
-            )}
-          </NavLink>
+
           {/* ecommerce Dropdown */}
           <div className="space-y-1">
             <button

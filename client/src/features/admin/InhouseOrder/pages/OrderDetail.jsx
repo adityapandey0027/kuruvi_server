@@ -52,7 +52,7 @@ const OrderDetail = () => {
   const handleAssignRider = async () => {
     if(!selectedRider) return toast.warning("Select a rider first");
     try {
-        await API.post(`/orders/assign-rider`, { orderId: id, riderId: selectedRider });
+        await API.post(`/admin/orders/assign-rider`, { orderId: order.orderId, riderId: selectedRider });
         toast.success("Rider assigned successfully");
         setIsModalOpen(false);
         // Refresh data

@@ -11,7 +11,7 @@ export const sendSms = async (mobile, otp) => {
             route: "dlt",
             sender_id: "KURUQC",
             message: "186094",
-            variables_values: `${otp}|sfdghfdgbxfhdgh|`,
+            variables_values: `${otp}`,
             flash: 0,
             numbers: mobile
         };
