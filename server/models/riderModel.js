@@ -1,51 +1,108 @@
 import mongoose from "mongoose";
 
+const imageSchema = new mongoose.Schema({
+  key: String,
+  url: String
+}, { _id: false });
+
 const riderSchema = new mongoose.Schema({
 
-  name: String,
+  name: {
+    type: String,
+    required: true
+  },
 
-  phone: String,
+  phone: {
+    type: String,
+    required: true,
+    unique: true
+  },
+
+  age: Number,
+
+  gender: {
+    type: String,
+    enum: ["MALE", "FEMALE", "OTHER"]
+  },
+
+  address: {
+    fullAddress: String,
+    city: String,
+    pincode: String
+  },
+
+  profileImage: imageSchema,
+
+  documents: {
+    aadhaarNumber: String,
+    aadhaarImage: imageSchema,
+
+    drivingLicenseNumber: String,
+    drivingLicenseImage: imageSchema
+  },
+
+  bankDetails: {
+    accountHolderName: String,
+    accountNumber: String,
+    ifscCode: String,
+    bankName: String
+  },
 
   vehicleType: {
     type: String,
-    enum:["bike","cycle"]
+    enum: ["bike", "cycle"]
   },
 
-  location:{
-    type:{
-      type:String,
-      enum:["Point"],
-      default:"Point"
+  location: {
+    type: {
+      type: String,
+      enum: ["Point"],
+      default: "Point"
     },
-    coordinates:[Number]
+    coordinates: {
+      type: [Number],
+      default: [0, 0] 
+    }
   },
 
-  status:{
-    type:String,
-    enum:["ONLINE","BUSY","OFFLINE"]
-  },
-  currentOrderId :{
-    type : String
+  currentOrderId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Order",
+    default: null
   },
 
-  isActive : {
-    type : Boolean,
-    default : true
+  activeOrders: {
+    type: Number,
+    default: 0
   },
-  role :{
-    type : String,
-    required : true,
-    default : "rider"
+
+  status: {
+    type: String,
+    enum: ["ONLINE", "BUSY", "OFFLINE"],
+    default: "OFFLINE"
   },
-  activeOrders:Number
 
-},{
-    timestamps : true
-});
+  isActive: {
+    type: Boolean,
+    default: true
+  },
 
-riderSchema.index({ location:"2dsphere" });
+  isVerified: {
+    type: Boolean,
+    default: false
+  },
+
+  role: {
+    type: String,
+    default: "rider"
+  }
+
+}, { timestamps: true });
+
+// Indexes
+riderSchema.index({ location: "2dsphere" });
 riderSchema.index({ createdAt: -1 });
-riderSchema.index({ name: "text", email: "text", phone: "text" });
+riderSchema.index({ name: "text", phone: "text" });
 
 const Rider = mongoose.model("Rider", riderSchema);
 export default Rider;

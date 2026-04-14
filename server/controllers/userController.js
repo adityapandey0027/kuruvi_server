@@ -338,7 +338,6 @@ export const getWallet = asyncHandler(async (req, res, next) => {
     });
 });
 
-
 export const getWalletTransactions = asyncHandler(async (req, res) => {
     const userId = req.user._id;
 

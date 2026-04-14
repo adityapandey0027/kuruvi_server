@@ -4,7 +4,7 @@ import { asyncHandler } from "../utilities/asyncHandler.utils.js";
 import Rider from "../models/riderModel.js";
 import Order from "../models/orderModel.js";
 import { riderSockets } from "../socketStore.js";
-
+import mongoose from "mongoose";
 export const getRiderProfile = asyncHandler(async (req, res, next) => {
     const riderId = req.user._id;
 
@@ -167,20 +167,27 @@ export const updateRiderOrderStatus = asyncHandler(async (req, res, next) => {
 });
 
 export const getAllRiders = asyncHandler(async (req, res, next) => {
-    let { page = 1, limit = 10, q = "", status } = req.query;
+    let {
+        page = 1,
+        limit = 10,
+        q = "",
+        status,
+        isVerified
+    } = req.query;
 
-    page = parseInt(page);
-    limit = parseInt(limit);
+    page = Number(page);
+    limit = Number(limit);
 
     const skip = (page - 1) * limit;
-
-    // 🔍 Filter
-    const filter = {};
+    
+    let filter= {};
+    // const filter = {
+    //     isActive: true
+    // };
 
     if (q) {
         filter.$or = [
             { name: { $regex: q, $options: "i" } },
-            { email: { $regex: q, $options: "i" } },
             { phone: { $regex: q, $options: "i" } }
         ];
     }
@@ -188,10 +195,22 @@ export const getAllRiders = asyncHandler(async (req, res, next) => {
     if (status) {
         filter.status = status;
     }
-    filter.isActive = true;
+
+    if (typeof isVerified !== "undefined") {
+        filter.isVerified = isVerified === "true";
+    }
 
     const riders = await Rider.find(filter)
-        .select("-password")
+        .select(`
+            name 
+            phone 
+            isActive
+            status 
+            vehicleType 
+            isVerified 
+            activeOrders 
+            createdAt
+        `)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -212,25 +231,39 @@ export const getAllRiders = asyncHandler(async (req, res, next) => {
 });
 
 export const getRiderDetails = asyncHandler(async (req, res, next) => {
-    const riderId = req.params.id;
+    const { id: riderId } = req.params;
     let { page = 1, limit = 10 } = req.query;
 
-    page = parseInt(page);
-    limit = parseInt(limit);
+    page = Number(page);
+    limit = Number(limit);
     const skip = (page - 1) * limit;
 
-    // 👤 Rider
-    const rider = await Rider.findById(riderId)
-        .select("-password")
-        .lean();
+    // 🔐 Validate ID
+    if (!mongoose.Types.ObjectId.isValid(riderId)) {
+        return next(new errorHandler("Invalid rider id", 400));
+    }
+
+    // 👤 Rider (FULL DETAILS)
+    const rider = await Rider.findById(riderId).lean();
 
     if (!rider) {
         return next(new errorHandler("Rider not found", 404));
     }
 
-    // 📦 Orders handled by rider
+    // 🔐 MASK SENSITIVE DATA (important)
+    if (rider.bankDetails?.accountNumber) {
+        rider.bankDetails.accountNumber =
+            "XXXX" + rider.bankDetails.accountNumber.slice(-4);
+    }
+
+    if (rider.documents?.aadhaarNumber) {
+        rider.documents.aadhaarNumber =
+            "XXXX-XXXX-" + rider.documents.aadhaarNumber.slice(-4);
+    }
+
+    // 📦 Orders
     const orders = await Order.find({ riderId })
-        .select("orderId status totalAmount createdAt")
+        .select("orderId status totalAmount deliveryFee createdAt")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -238,17 +271,18 @@ export const getRiderDetails = asyncHandler(async (req, res, next) => {
 
     const totalOrders = await Order.countDocuments({ riderId });
 
-    // 📊 Stats
+    // 📊 Stats (DELIVERED ONLY)
     const statsAgg = await Order.aggregate([
-        { $match: { riderId: rider._id } },
+        {
+            $match: {
+                riderId: new mongoose.Types.ObjectId(riderId),
+                status: "DELIVERED"
+            }
+        },
         {
             $group: {
                 _id: null,
-                totalDelivered: {
-                    $sum: {
-                        $cond: [{ $eq: ["$status", "DELIVERED"] }, 1, 0]
-                    }
-                },
+                totalDelivered: { $sum: 1 },
                 totalEarnings: { $sum: "$deliveryFee" }
             }
         }
@@ -262,7 +296,7 @@ export const getRiderDetails = asyncHandler(async (req, res, next) => {
     res.status(200).json({
         success: true,
         data: {
-            ...rider,
+            rider,   // 👈 full rider
             stats,
             orders,
             pagination: {
@@ -275,12 +309,47 @@ export const getRiderDetails = asyncHandler(async (req, res, next) => {
     });
 });
 
-export const getAvailableRiders = asyncHandler(async (req, res, next)=>{
+export const getAvailableRidersViaAdmin = asyncHandler(async (req, res, next) => {
+
+    let { page = 1, limit = 10, q = "" } = req.query;
+
+    page = Number(page);
+    limit = Number(limit);
+
+    const skip = (page - 1) * limit;
+
+    // 🔍 Filter
+    const filter = {
+        isActive: true,
+        isVerified: true
+    };
+
+    // 🔍 Optional search
+    if (q) {
+        filter.$or = [
+            { name: { $regex: q, $options: "i" } },
+            { phone: { $regex: q, $options: "i" } }
+        ];
+    }
+
+    const riders = await Rider.find(filter)
+        .select("name phone status vehicleType activeOrders")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean();
+
+    const total = await Rider.countDocuments(filter);
 
     res.status(200).json({
-        success : true
-    })
-})
+        success: true,
+        page,
+        limit,
+        total,
+        count: riders.length,
+        data: riders
+    });
+});
 
 export const getAvailableOrders = asyncHandler(async (req, res, next) => {
 

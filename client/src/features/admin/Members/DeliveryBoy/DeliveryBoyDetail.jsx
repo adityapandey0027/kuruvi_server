@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import API from "../../../../api/axios"; // Using your configured API instance
+import API from "../../../../api/axios"; 
 import { 
   Wallet, Landmark, FileText, ArrowLeft, 
-  Loader2, ExternalLink, CheckCircle, Package 
+  Loader2, ExternalLink, CheckCircle, Package, MapPin, ShieldCheck, User
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 
@@ -16,11 +16,10 @@ const DeliveryBoyDetail = () => {
   const fetchDetails = async () => {
     try {
       setLoading(true);
-      // FIXED: API path updated to match your backend riders endpoint
-      const res = await API.get(`/admin/riders/${id}`);
+      const res = await API.get(`/admin/riders/details/${id}`);
       setData(res.data.data);
     } catch (err) {
-      toast.error("Could not fetch rider details");
+      toast.error("Could not fetch rider dossier");
     } finally {
       setLoading(false);
     }
@@ -30,12 +29,11 @@ const DeliveryBoyDetail = () => {
 
   const updateStatus = async (statusValue) => {
     try {
-      // Adjusted endpoint for status updates
       await API.post(`/admin/riders/update-status/${id}`, { status: statusValue });
-      toast.success("Status updated successfully");
+      toast.success("Operational status updated");
       fetchDetails(); 
     } catch (err) {
-      toast.error("Failed to update status");
+      toast.error("Action failed");
     }
   };
 
@@ -45,172 +43,175 @@ const DeliveryBoyDetail = () => {
     </div>
   );
 
-  if (!data) return (
-    <div className="p-20 text-center font-black text-slate-300 uppercase tracking-widest">
-      Rider Profile Not Found
-    </div>
-  );
+  if (!data || !data.rider) return <div className="p-20 text-center font-black text-slate-300">Rider Not Found</div>;
+
+  const { rider, stats, orders } = data;
 
   return (
-    <div className="space-y-6 pb-12 font-sans">
-      {/* Top Navigation & Status Action */}
+    <div className="space-y-6 pb-20 font-sans max-w-7xl mx-auto">
+      {/* Header Actions */}
       <div className="flex justify-between items-center">
         <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-400 hover:text-black font-black text-[10px] uppercase tracking-[0.2em] transition-all">
-          <ArrowLeft size={16} /> Return to Partners
+          <ArrowLeft size={16} /> Back to Fleet
         </button>
         <div className="flex gap-3">
-          {data.status !== 'active' ? (
+          {!rider.isVerified && (
             <button 
               onClick={() => updateStatus('active')} 
-              className="bg-emerald-600 text-white px-6 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-100 hover:bg-emerald-700 transition-all"
+              className="bg-emerald-600 text-white px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-black transition-all shadow-xl shadow-emerald-100"
             >
-              Approve Rider
-            </button>
-          ) : (
-            <button 
-              onClick={() => updateStatus('inactive')} 
-              className="bg-slate-800 text-white px-6 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest"
-            >
-              Suspend Account
+              Verify Credentials
             </button>
           )}
+          <button className="bg-slate-100 text-slate-600 px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-slate-200">
+            Export Report
+          </button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
         {/* Profile Card */}
-        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col items-center">
-          <div className="h-32 w-32 rounded-[2.5rem] bg-slate-50 border-4 border-white shadow-xl overflow-hidden mb-4">
-            {data.image ? (
-              <img src={data.image} className="h-full w-full object-cover" alt="Rider" />
-            ) : (
-              <div className="h-full w-full flex items-center justify-center text-slate-300 font-black text-3xl">
-                {data.name?.charAt(0)}
-              </div>
-            )}
-          </div>
-          <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">{data.name}</h3>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">{data.phone}</p>
-          
-          <div className="w-full mt-6 pt-6 border-t border-slate-50 space-y-3">
-            <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-              <span className="text-slate-400">Email:</span>
-              <span className="text-slate-900 truncate ml-4">{data.email}</span>
+        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
+          <div className="flex flex-col items-center">
+            <div className="h-32 w-32 rounded-[2.5rem] bg-slate-50 border-4 border-white shadow-2xl overflow-hidden mb-6">
+              {rider.profileImage?.url ? (
+                <img src={rider.profileImage.url} className="h-full w-full object-cover" alt="Rider" />
+              ) : (
+                <div className="h-full w-full flex items-center justify-center bg-[#7e2827] text-white text-4xl font-black">{rider.name?.charAt(0)}</div>
+              )}
             </div>
-            <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-              <span className="text-slate-400">Status:</span>
-              <span className={data.status === 'active' ? 'text-emerald-600' : 'text-amber-500'}>{data.status}</span>
+            <h3 className="text-2xl font-black text-black uppercase tracking-tighter">{rider.name}</h3>
+            <span className="text-[10px] font-black text-[#7e2827] uppercase tracking-[0.3em] mt-1">{rider.status}</span>
+            
+            <div className="grid grid-cols-2 gap-4 w-full mt-8">
+                <div className="bg-slate-50 p-4 rounded-2xl text-center">
+                    <p className="text-[9px] font-black text-slate-400 uppercase">Age</p>
+                    <p className="text-sm font-black">{rider.age}</p>
+                </div>
+                <div className="bg-slate-50 p-4 rounded-2xl text-center">
+                    <p className="text-[9px] font-black text-slate-400 uppercase">Gender</p>
+                    <p className="text-sm font-black">{rider.gender}</p>
+                </div>
+            </div>
+          </div>
+
+          <div className="mt-8 pt-8 border-t border-slate-50 space-y-4">
+            <div className="flex items-start gap-3">
+                <MapPin size={18} className="text-slate-300 mt-1" />
+                <div>
+                    <p className="text-[9px] font-black text-slate-400 uppercase">Residential Address</p>
+                    <p className="text-xs font-bold text-slate-700 leading-relaxed uppercase">
+                        {rider.address.fullAddress}, {rider.address.city} - {rider.address.pincode}
+                    </p>
+                </div>
             </div>
           </div>
         </div>
 
-        {/* Earning Summary Card (Updated to match Aditya's statsAgg) */}
-        <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="p-3 bg-red-50 text-[#7e2827] rounded-2xl"><Wallet size={20} /></div>
-            <h4 className="font-black text-xs uppercase tracking-widest">Performance Metrics</h4>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="p-6 bg-slate-50/50 rounded-3xl border border-slate-100">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Total Earnings</p>
-              <p className="text-3xl font-black text-slate-900 tracking-tighter">₹{data.stats?.totalEarnings || 0}</p>
+        {/* Financial & Operational Stats */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-10">
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-[#7e2827]/10 text-[#7e2827] rounded-lg"><Wallet size={18}/></div>
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Lifetime Earnings</h4>
+              </div>
+              <p className="text-5xl font-black tracking-tighter italic">₹{stats.totalEarnings?.toLocaleString()}</p>
             </div>
-            <div className="p-6 bg-slate-50/50 rounded-3xl border border-slate-100">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Delivered Orders</p>
-              <div className="flex items-center gap-2">
-                <p className="text-3xl font-black text-slate-900 tracking-tighter">{data.stats?.totalDelivered || 0}</p>
-                <CheckCircle className="text-emerald-500" size={20} />
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><CheckCircle size={18}/></div>
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Delivered Orders</h4>
+              </div>
+              <p className="text-5xl font-black tracking-tighter italic">{stats.totalDelivered}</p>
+            </div>
+          </div>
+
+          {/* Verification Docs */}
+          <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
+            <div className="flex items-center gap-2 mb-6 text-[#7e2827]">
+                <ShieldCheck size={20} />
+                <h4 className="text-xs font-black uppercase tracking-widest">Government Verification</h4>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 bg-slate-50 rounded-2xl flex justify-between items-center border border-slate-100">
+                <div>
+                  <p className="text-[9px] font-black text-slate-400 uppercase">Aadhaar Number</p>
+                  <p className="text-xs font-black tracking-widest">{rider.documents?.aadhaarNumber}</p>
+                </div>
+                <a href={rider.documents?.aadhaarImage?.url} target="_blank" rel="noreferrer" className="p-3 bg-white rounded-xl shadow-sm text-[#7e2827] hover:bg-black hover:text-white transition-all">
+                  <ExternalLink size={16} />
+                </a>
+              </div>
+              <div className="p-4 bg-slate-50 rounded-2xl flex justify-between items-center border border-slate-100">
+                <div>
+                  <p className="text-[9px] font-black text-slate-400 uppercase">Driving License</p>
+                  <p className="text-xs font-black tracking-widest">{rider.documents?.drivingLicenseNumber}</p>
+                </div>
+                <a href={rider.documents?.drivingLicenseImage?.url} target="_blank" rel="noreferrer" className="p-3 bg-white rounded-xl shadow-sm text-[#7e2827] hover:bg-black hover:text-white transition-all">
+                  <ExternalLink size={16} />
+                </a>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Verification Documents (KYC) */}
-        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl"><FileText size={20} /></div>
-            <h4 className="font-black text-xs uppercase tracking-widest">Verification Dossier</h4>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {[
-              { label: 'Aadhar Card', url: data.aadharImage },
-              { label: 'PAN Card', url: data.panImage },
-              { label: 'Driving License', url: data.licenseImage },
-              { label: 'Vehicle RC', url: data.rcImage }
-            ].map((doc, idx) => (
-              <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">{doc.label}</span>
-                {doc.url ? (
-                  <a href={doc.url} target="_blank" rel="noreferrer" className="p-2 bg-white rounded-xl text-[#7e2827] shadow-sm hover:scale-110 transition-transform">
-                    <ExternalLink size={14} />
-                  </a>
-                ) : (
-                  <span className="text-[8px] font-bold text-slate-300 italic uppercase">Not Uploaded</span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Bank Account Info */}
-        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-          <div className="flex items-center gap-3 mb-6">
+      {/* Bank & Payouts */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 lg:col-span-1">
+          <div className="flex items-center gap-3 mb-8">
             <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl"><Landmark size={20} /></div>
-            <h4 className="font-black text-xs uppercase tracking-widest">Payout Details</h4>
+            <h4 className="font-black text-xs uppercase tracking-widest">Settlement Account</h4>
           </div>
           <div className="space-y-4">
             {[
-              { label: 'Account Holder', value: data.bankDetails?.holderName },
-              { label: 'Account Number', value: data.bankDetails?.accountNo },
-              { label: 'IFSC Code', value: data.bankDetails?.ifscCode },
-              { label: 'Bank Name', value: data.bankDetails?.bankName }
+              { label: 'Beneficiary', value: rider.bankDetails?.accountHolderName },
+              { label: 'A/C Number', value: rider.bankDetails?.accountNumber },
+              { label: 'Bank', value: rider.bankDetails?.bankName },
+              { label: 'IFSC', value: rider.bankDetails?.ifscCode }
             ].map((item, i) => (
               <div key={i} className="flex justify-between items-center border-b border-slate-50 pb-2">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{item.label}</span>
-                <span className="text-xs font-black text-slate-900 uppercase">{item.value || "N/A"}</span>
+                <span className="text-[10px] font-black text-slate-400 uppercase">{item.label}</span>
+                <span className="text-xs font-black text-black uppercase">{item.value || "---"}</span>
               </div>
             ))}
           </div>
         </div>
-      </div>
 
-      {/* Rider Order History (Updated to match Aditya's .orders array) */}
-      <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
-        <div className="p-6 border-b border-slate-50 flex items-center gap-3">
-          <Package className="text-[#7e2827]" size={18} />
-          <h4 className="font-black text-xs uppercase tracking-widest">Consignment History</h4>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-              <tr>
-                <th className="p-5">Reference ID</th>
-                <th className="p-5">Timestamp</th>
-                <th className="p-5">Valuation</th>
-                <th className="p-5 text-right">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {data.orders?.length > 0 ? data.orders.map((order, i) => (
-                <tr key={i} className="hover:bg-slate-50/50 transition-colors group">
-                  <td className="p-5 font-black text-slate-900 tracking-tight">#{order.orderId}</td>
-                  <td className="p-5 text-slate-500 font-bold">{new Date(order.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
-                  <td className="p-5 font-black text-slate-900 font-mono text-xs">₹{order.totalAmount}</td>
-                  <td className="p-5 text-right">
-                    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${order.status === 'DELIVERED' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                      {order.status}
-                    </span>
-                  </td>
-                </tr>
-              )) : (
+        {/* Order History Table */}
+        <div className="lg:col-span-2 bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden">
+          <div className="p-6 bg-slate-50/50 flex justify-between items-center border-b border-slate-50">
+             <h4 className="text-xs font-black uppercase tracking-widest">Recent Activity</h4>
+             <span className="text-[9px] font-black text-slate-400 uppercase">Total Items: {data.pagination?.total}</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="text-[9px] font-black text-slate-400 uppercase bg-slate-50/20">
                 <tr>
-                  <td colSpan="4" className="p-10 text-center text-[10px] font-black text-slate-300 uppercase tracking-widest">No transaction logs available</td>
+                  <th className="p-6">Manifest ID</th>
+                  <th className="p-6">Status</th>
+                  <th className="p-6 text-right">Settlement</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {orders?.length > 0 ? orders.map((o, i) => (
+                  <tr key={i} className="text-xs font-bold text-slate-700">
+                    <td className="p-6">#{o.orderId}</td>
+                    <td className="p-6">
+                        <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[9px] font-black">{o.status}</span>
+                    </td>
+                    <td className="p-6 text-right font-black">₹{o.totalAmount}</td>
+                  </tr>
+                )) : (
+                  <tr>
+                    <td colSpan="3" className="p-20 text-center text-[10px] font-black text-slate-300 uppercase tracking-widest">No order history available</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
