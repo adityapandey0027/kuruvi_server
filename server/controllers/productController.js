@@ -377,46 +377,10 @@ export const getAllProducts = asyncHandler(async (req, res, next) => {
 });
 
 
-// export const getProductWithVariantById = asyncHandler(async (req, res, next) => {
-
-//     const productId = req.params.id;
-
-//     const product = await Product.findById(productId)
-//         .populate("categoryId", "name")
-//         .lean();
-
-//     if (!product) {
-//         return next(new errorHandler("Product not found", 404));
-//     }
-
-//     const variants = await Variant.find({ productId })
-//         .select("sku mrp size unit weight images attributes")
-//         .lean();
-
-//     res.status(200).json({
-//         success: true,
-//         data: {
-//             product,
-//             variants
-//         }
-//     });
-
-// });
-
 export const getProductWithVariantById = asyncHandler(async (req, res, next) => {
 
     const productId = req.params.id;
-    const { storeId } = req.query;
 
-    if (!mongoose.Types.ObjectId.isValid(productId)) {
-        return next(new errorHandler("Invalid product id", 400));
-    }
-
-    if (!storeId || !mongoose.Types.ObjectId.isValid(storeId)) {
-        return next(new errorHandler("Invalid store id", 400));
-    }
-
-    // 🔹 Product
     const product = await Product.findById(productId)
         .populate("categoryId", "name")
         .lean();
@@ -425,61 +389,97 @@ export const getProductWithVariantById = asyncHandler(async (req, res, next) => 
         return next(new errorHandler("Product not found", 404));
     }
 
-    // 🔹 Variants via Inventory (store-specific)
-    const inventories = await Inventory.aggregate([
-        {
-            $match: {
-                storeId: new mongoose.Types.ObjectId(storeId),
-                stock: { $gt: 0 },
-                isAvailable: true
-            }
-        },
-
-        {
-            $lookup: {
-                from: "variants",
-                localField: "variantId",
-                foreignField: "_id",
-                as: "variant"
-            }
-        },
-        { $unwind: "$variant" },
-
-        {
-            $match: {
-                "variant.productId": new mongoose.Types.ObjectId(productId)
-            }
-        },
-
-        // optional sort
-        { $sort: { price: 1 } },
-
-        {
-            $project: {
-                _id: "$variant._id", // ✅ keep same
-                sku: "$variant.sku",
-                mrp: "$variant.mrp",
-                size: "$variant.size",
-                unit: "$variant.unit",
-                weight: "$variant.weight",
-                images: "$variant.images",
-                attributes: "$variant.attributes",
-
-                // optional (you can include or remove)
-                price: "$price",
-                stock: "$stock"
-            }
-        }
-    ]);
+    const variants = await Variant.find({ productId })
+        .select("sku mrp size unit weight images attributes")
+        .lean();
 
     res.status(200).json({
         success: true,
         data: {
             product,
-            variants: inventories
+            variants
         }
     });
+
 });
+
+// export const getProductWithVariantById = asyncHandler(async (req, res, next) => {
+
+//     const productId = req.params.id;
+//     const { storeId } = req.query;
+
+//     if (!mongoose.Types.ObjectId.isValid(productId)) {
+//         return next(new errorHandler("Invalid product id", 400));
+//     }
+
+//     if (!storeId || !mongoose.Types.ObjectId.isValid(storeId)) {
+//         return next(new errorHandler("Invalid store id", 400));
+//     }
+
+//     // 🔹 Product
+//     const product = await Product.findById(productId)
+//         .populate("categoryId", "name")
+//         .lean();
+
+//     if (!product) {
+//         return next(new errorHandler("Product not found", 404));
+//     }
+
+//     // 🔹 Variants via Inventory (store-specific)
+//     const inventories = await Inventory.aggregate([
+//         {
+//             $match: {
+//                 storeId: new mongoose.Types.ObjectId(storeId),
+//                 stock: { $gt: 0 },
+//                 isAvailable: true
+//             }
+//         },
+
+//         {
+//             $lookup: {
+//                 from: "variants",
+//                 localField: "variantId",
+//                 foreignField: "_id",
+//                 as: "variant"
+//             }
+//         },
+//         { $unwind: "$variant" },
+
+//         {
+//             $match: {
+//                 "variant.productId": new mongoose.Types.ObjectId(productId)
+//             }
+//         },
+
+//         // optional sort
+//         { $sort: { price: 1 } },
+
+//         {
+//             $project: {
+//                 _id: "$variant._id", // ✅ keep same
+//                 sku: "$variant.sku",
+//                 mrp: "$variant.mrp",
+//                 size: "$variant.size",
+//                 unit: "$variant.unit",
+//                 weight: "$variant.weight",
+//                 images: "$variant.images",
+//                 attributes: "$variant.attributes",
+
+//                 // optional (you can include or remove)
+//                 price: "$price",
+//                 stock: "$stock"
+//             }
+//         }
+//     ]);
+
+//     res.status(200).json({
+//         success: true,
+//         data: {
+//             product,
+//             variants: inventories
+//         }
+//     });
+// });
 
 
 
