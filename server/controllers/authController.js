@@ -203,7 +203,7 @@ export const sendRiderOtp = asyncHandler(async (req, res, next) => {
     const otp = Math.floor(1000 + Math.random() * 9000);
 
     if (process.env.NODE_ENV === "production") {
-        await sendSms(mobile, otp);
+        await sendSms(rider.phone, otp);
     }
 
     await connection.set(otpKey, otp.toString(), "EX", 600);

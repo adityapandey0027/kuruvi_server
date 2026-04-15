@@ -1,31 +1,81 @@
 @import "tailwindcss";
 
-
-/* Customizing the Carousel Buttons to look like Flipkart */
-.react-multiple-carousel__arrow {
-  background: rgba(255,255,255,0.35) !important;
-  backdrop-filter: blur(6px);
-  border-radius: 8px !important;
-  min-width: 45px !important;
-  min-height: 80px !important;
-  transition: all 0.3s ease;
-  opacity: 0;
+/* --- 1. React DatePicker Custom Range Styling --- */
+/* Highlighting the days BETWEEN the start and end date */
+.react-datepicker__day--in-range {
+  background-color: rgba(126, 40, 39, 0.08) !important;
+  color: #7e2827 !important;
+  border-radius: 0 !important; /* Keep it flat to look like a continuous bar */
 }
 
-/* show arrows on hover */
+/* The actual start and end circles */
+.react-datepicker__day--selected, 
+.react-datepicker__day--range-start, 
+.react-datepicker__day--range-end {
+  background-color: #7e2827 !important;
+  color: white !important;
+  border-radius: 0.75rem !important; /* Modern rounded look */
+  font-weight: 900 !important;
+}
+
+/* Fix for the hover effect while selecting a range */
+.react-datepicker__day--in-selecting-range {
+  background-color: rgba(126, 40, 39, 0.05) !important;
+}
+
+/* --- 2. Carousel Arrow Customization (Flipkart Style) --- */
+.react-multiple-carousel__arrow {
+  background: rgba(255, 255, 255, 0.6) !important;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 12px !important;
+  min-width: 48px !important;
+  min-height: 90px !important;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+}
+
+/* Show arrows on hover of the container */
 .carousel-container:hover .react-multiple-carousel__arrow {
   opacity: 1;
 }
 
 .react-multiple-carousel__arrow:hover {
-  background: rgba(255,255,255,0.9) !important;
-  transform: scale(1.05);
+  background: rgba(255, 255, 255, 1) !important;
+  transform: translateY(-50%) scale(1.05) !important; /* Note: arrows usually use translateY(-50%) by default */
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+/* Arrow Icon Color */
+.react-multiple-carousel__arrow::before {
+  color: #000 !important;
+  font-weight: 900 !important;
 }
 
 .react-multiple-carousel__arrow--left {
-  left: 10px !important;
+  left: 0 !important; /* Flushed to side */
 }
 
 .react-multiple-carousel__arrow--right {
-  right: 10px !important;
+  right: 0 !important; /* Flushed to side */
+}
+
+/* --- 3. Scrollbar Customization for Modern Look --- */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #7e2827;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #000;
 }
