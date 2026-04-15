@@ -188,7 +188,7 @@ export const sendRiderOtp = asyncHandler(async (req, res, next) => {
     if (!rider.isActive) {
         return next(new errorHandler("Account disabled", 403));
     }
-     if (!rider.isVerified) {
+    if (!rider.isVerified) {
         return next(new errorHandler("Please wait for admin varification, before loign", 403));
     }
 
@@ -200,10 +200,11 @@ export const sendRiderOtp = asyncHandler(async (req, res, next) => {
         return next(new errorHandler(`Wait ${ttl}s before retry`, 429));
     }
 
-    const otp = Math.floor(1000 + Math.random() * 9000);
+    // const otp = Math.floor(1000 + Math.random() * 9000);
+    const otp = 2200;
 
     if (process.env.NODE_ENV === "production") {
-        await sendSms(rider.phone, otp);
+        // await sendSms(rider.phone, otp);
     }
 
     await connection.set(otpKey, otp.toString(), "EX", 600);

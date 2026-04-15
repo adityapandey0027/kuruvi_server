@@ -56,6 +56,7 @@ io.on("connection", (socket) => {
     const { userId, role, storeId } = socket.handshake.query;
 
     if (!userId || !role) {
+      console.log("Missing userId or role");
       socket.disconnect();
       return;
     }
@@ -68,15 +69,12 @@ io.on("connection", (socket) => {
 
     console.log(`🔌 ${role} connected: ${userId}`);
 
-    // ================= USER =================
     if (role === "user") {
       userSockets.set(userId, socket.id);
-
-      // ✅ IMPORTANT (for notifications)
+       console.log(userId, socket.id);
       socket.join(`user_${userId}`);
     }
 
-    // ================= RIDER =================
     if (role === "rider") {
       riderSockets.set(userId, socket.id);
 
@@ -96,7 +94,6 @@ io.on("connection", (socket) => {
       });
     }
 
-    // ================= STORE =================
     if (role === "store") {
       storeSockets.set(userId, socket.id);
 
@@ -106,7 +103,6 @@ io.on("connection", (socket) => {
       }
     }
 
-    // ================= ORDER TRACK =================
     socket.on("join_order", (orderId) => {
       if (!orderId) return;
 
@@ -114,7 +110,6 @@ io.on("connection", (socket) => {
       console.log(`📦 Joined order room: ${orderId}`);
     });
 
-    // ================= LIVE LOCATION =================
     socket.on("update_location", ({ orderId, lat, lng }) => {
       if (!orderId) return;
 
@@ -125,7 +120,6 @@ io.on("connection", (socket) => {
       });
     });
 
-    // ================= DISCONNECT =================
     socket.on("disconnect", () => {
       const { userId, role } = socket.data;
 
@@ -147,7 +141,6 @@ io.on("connection", (socket) => {
   }
 });
 
-// 🔥 CLEANUP STALE RIDERS (VERY IMPORTANT)
 setInterval(() => {
   const now = Date.now();
 
@@ -158,7 +151,6 @@ setInterval(() => {
   }
 }, 10000);
 
-// ================= APP =================
 app.set("io", io);
 
 // Middlewares

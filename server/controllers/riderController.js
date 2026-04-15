@@ -364,6 +364,7 @@ export const getAvailableOrders = asyncHandler(async (req, res, next) => {
     })
         .populate("storeId", "name location")
         .populate("userId", "name")
+        .populate("addressId", "addressLine city location receiverPhone pincode")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit);
@@ -475,6 +476,7 @@ export const getRiderCurrentOrder = asyncHandler(async (req, res, next) => {
         status: "OUT_FOR_DELIVERY"
     })
         .populate("userId", "name phone")
+        .populate("addressId", "addressLine city location receiverPhone pincode")
         .populate("storeId", "name address");
 
     if (!order) {
@@ -514,14 +516,15 @@ export const markDeliverOrder = asyncHandler(async (req, res, next) => {
         return next(new errorHandler("Collect payment before delivery", 400));
     }
 
-    const otp = Math.floor(1000 + Math.random() * 9000);
+   // const otp = Math.floor(1000 + Math.random() * 9000);
+    const otp = 2200;
 
     const otpKey = `delivery_otp:${order._id}`;
 
     await connection.set(otpKey, otp.toString(), "EX", 300);
 
     if (process.env.NODE_ENV === "production") {
-        await sendSms(order.addressId?.receiverPhone, ` ${otp}`);
+       // await sendSms(order.addressId?.receiverPhone, ` ${otp}`);
     }
 
     res.status(200).json({
@@ -603,14 +606,14 @@ export const getAcceptedOrders = asyncHandler(async (req, res, next) => {
     });
 });
 
-export const codOrderPaymentCollection = asyncHandler(async (req, res, next)=>{
+export const codOrderPaymentCollection = asyncHandler(async (req, res, next) => {
 
     res.status(200).json({
         success: true
     })
 })
 
-export const codOrderPaymentVerification = asyncHandler(async (req, res, next)=>{
+export const codOrderPaymentVerification = asyncHandler(async (req, res, next) => {
 
     res.status(200).json({
         success: true
