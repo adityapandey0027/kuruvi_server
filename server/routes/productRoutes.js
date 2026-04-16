@@ -1,6 +1,6 @@
 import express from 'express';
 import { isAdmin, isAuth } from '../middlewares/isAuthMiddleware.js';
-import { createProduct, createVariant, getProducts, getProductById, getProductWithVariantById, getAllProducts, getVarauriantsBySearch, editProduct, deleteProduct, getAllProductInApp, getProductByCategoryGroup, addSuggestionForAdmin } from '../controllers/productController.js';
+import { createProduct, createVariant, getProducts, getProductById, getProductWithVariantById, getAllProducts, getVarauriantsBySearch, editProduct, deleteProduct, getAllProductInApp, getProductByCategoryGroup, addSuggestionForAdmin, getProductWithVariantByIdWithStore } from '../controllers/productController.js';
 import upload from '../middlewares/uploadMiddleware.js';
 
 const productRoutes = express.Router();
