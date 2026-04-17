@@ -406,7 +406,7 @@ export const getProductWithVariantById = asyncHandler(async (req, res, next) => 
 export const getProductWithVariantByIdWithStore = asyncHandler(async (req, res, next) => {
 
     const productId = req.params.id;
-    const { storeId } = req.query;
+    const { storeId } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(productId)) {
         return next(new errorHandler("Invalid product id", 400));
