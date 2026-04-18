@@ -20,6 +20,9 @@ export const getMostShoppedProducts = asyncHandler(async (req, res, next) => {
         dateFilter.createdAt = { $gte: pastDate };
     }
 
+    // =========================
+    // 🔥 PRIMARY PIPELINE (ORDERS)
+    // =========================
     let data = await Order.aggregate([
         {
             $match: {
@@ -71,9 +74,126 @@ export const getMostShoppedProducts = asyncHandler(async (req, res, next) => {
 
         {
             $match: { "product.isActive": true }
+        },
+
+        // 🔥 FETCH VARIANTS
+        {
+            $lookup: {
+                from: "inventories",
+                let: { productId: "$_id" },
+                pipeline: [
+                    {
+                        $match: {
+                            storeId: new mongoose.Types.ObjectId(storeId),
+                            isAvailable: true,
+                            stock: { $gt: 0 }
+                        }
+                    },
+                    {
+                        $lookup: {
+                            from: "variants",
+                            localField: "variantId",
+                            foreignField: "_id",
+                            as: "variant"
+                        }
+                    },
+                    { $unwind: "$variant" },
+
+                    {
+                        $match: {
+                            $expr: {
+                                $eq: ["$variant.productId", "$$productId"]
+                            }
+                        }
+                    },
+
+                    {
+                        $addFields: {
+                            discount: {
+                                $subtract: ["$variant.mrp", "$price"]
+                            },
+                            discountPercentage: {
+                                $cond: [
+                                    { $gt: ["$variant.mrp", 0] },
+                                    {
+                                        $multiply: [
+                                            {
+                                                $divide: [
+                                                    { $subtract: ["$variant.mrp", "$price"] },
+                                                    "$variant.mrp"
+                                                ]
+                                            },
+                                            100
+                                        ]
+                                    },
+                                    0
+                                ]
+                            }
+                        }
+                    }
+                ],
+                as: "variants"
+            }
+        },
+
+        { $unwind: { path: "$variants", preserveNullAndEmptyArrays: true } },
+
+        {
+            $group: {
+                _id: "$_id",
+                product: { $first: "$product" },
+                totalSold: { $first: "$totalSold" },
+                variants: {
+                    $push: {
+                        _id: "$variants.variant._id",
+                        sku: "$variants.variant.sku",
+                        mrp: "$variants.variant.mrp",
+                        size: "$variants.variant.size",
+                        unit: "$variants.variant.unit",
+                        weight: "$variants.variant.weight",
+                        price: "$variants.price",
+                        stock: "$variants.stock",
+                        discount: "$variants.discount",
+                        discountPercentage: {
+                            $round: ["$variants.discountPercentage", 2]
+                        },
+                        image: {
+                            $arrayElemAt: ["$variants.variant.images.url", 0]
+                        }
+                    }
+                }
+            }
+        },
+
+        {
+            $addFields: {
+                variants: {
+                    $sortArray: {
+                        input: "$variants",
+                        sortBy: { price: 1 }
+                    }
+                }
+            }
+        },
+
+        {
+            $project: {
+                _id: 0,
+                product: {
+                    _id: "$product._id",
+                    name: "$product.name",
+                    brand: "$product.brand",
+                    description: "$product.description"
+                },
+                totalSold: 1,
+                variants: 1
+            }
         }
     ]);
 
+    // =========================
+    // 🛑 FALLBACK (NO ORDERS)
+    // =========================
     if (!data || data.length === 0) {
 
         const fallback = await Inventory.aggregate([
@@ -126,8 +246,17 @@ export const getMostShoppedProducts = asyncHandler(async (req, res, next) => {
             },
 
             {
-                $limit: Number(limit)
+                $addFields: {
+                    variants: {
+                        $sortArray: {
+                            input: "$variants",
+                            sortBy: { price: 1 }
+                        }
+                    }
+                }
             },
+
+            { $limit: Number(limit) },
 
             {
                 $project: {
@@ -138,7 +267,7 @@ export const getMostShoppedProducts = asyncHandler(async (req, res, next) => {
                         brand: "$product.brand",
                         description: "$product.description"
                     },
-                    totalSold: 0, // 👈 fallback
+                    totalSold: { $literal: 0 }, // ✅ FIXED
                     variants: 1
                 }
             }
@@ -146,16 +275,19 @@ export const getMostShoppedProducts = asyncHandler(async (req, res, next) => {
 
         return res.status(200).json({
             success: true,
-            count: fallback.length,
             fallback: true,
+            count: fallback.length,
             data: fallback
         });
     }
 
+    // =========================
+    // ✅ NORMAL RESPONSE
+    // =========================
     res.status(200).json({
         success: true,
-        count: data.length,
         fallback: false,
+        count: data.length,
         data
     });
 });
