@@ -28,6 +28,11 @@ const orderSchema = new mongoose.Schema({
         ref: "UserAddress",
 
     },
+     couponId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Coupon",
+
+    },
     itemTotal: {
         type: Number,
         required: true,

@@ -9,6 +9,7 @@ import Razorpay from "razorpay";
 import crypto from "crypto";
 import Store from "../models/storeModel.js";
 import { riderSockets, riderLocations } from "../socketStore.js";
+import Coupon from "../models/couponModel.js";
 
 export const razorpay = new Razorpay({
     key_id: process.env.RAZORPAY_KEY_ID,
@@ -30,23 +31,39 @@ function getDistance(lat1, lon1, lat2, lon2) {
 }
 
 export const createOrder = asyncHandler(async (req, res, next) => {
-    const { storeId, items, addressId, deliveryFee = 0, paymentOption } = req.body;
+    const {
+        storeId,
+        items,
+        addressId,
+        couponId,
+        deliveryFee = 0,
+        paymentOption
+    } = req.body;
+
+
     const userId = req.user._id;
 
     if (!items || items.length === 0) {
         return next(new errorHandler("Order items are required", 400));
     }
 
+    const normalizedCouponId =
+    couponId && mongoose.Types.ObjectId.isValid(couponId)
+        ? couponId
+        : null;
+
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
         let itemTotal = 0;
+        let discount = 0;
+
         const orderItemsData = [];
 
+        // 🔹 STEP 1: VALIDATE + CALCULATE ITEMS
         for (const item of items) {
 
-            // Fetch inventory (single source of truth)
             const inventory = await Inventory.findOne({
                 storeId,
                 variantId: item.variantId,
@@ -61,17 +78,16 @@ export const createOrder = asyncHandler(async (req, res, next) => {
                 throw new Error("Insufficient stock");
             }
 
-            // Get variant (for mrp / info only)
             const variant = await Variant.findById(item.variantId).session(session);
 
             if (!variant) {
                 throw new Error("Invalid product variant");
             }
 
-            // Correct price source
             const price = inventory.price;
             const mrp = variant.mrp || price;
 
+            // 🔥 Deduct stock
             inventory.stock -= item.quantity;
             await inventory.save({ session });
 
@@ -85,7 +101,69 @@ export const createOrder = asyncHandler(async (req, res, next) => {
             });
         }
 
-        const totalAmount = itemTotal + deliveryFee;
+        // 🔹 STEP 2: APPLY COUPON
+        if (normalizedCouponId) {
+            const coupon = await Coupon.findById(couponId).session(session);
+
+            if (!coupon || !coupon.isActive) {
+                throw new Error("Invalid coupon");
+            }
+
+            const now = new Date();
+
+            if (now < coupon.validFrom || now > coupon.validTill) {
+                throw new Error("Coupon expired or not started");
+            }
+
+            if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit) {
+                throw new Error("Coupon usage limit reached");
+            }
+
+            if (itemTotal < coupon.minOrderAmount) {
+                throw new Error(`Minimum order ₹${coupon.minOrderAmount} required`);
+            }
+
+            // 👤 Per-user usage
+            const userUsage = await Order.countDocuments({
+                userId,
+                normalizedCouponId
+            }).session(session);
+
+            if (userUsage >= coupon.perUserLimit) {
+                throw new Error("Coupon already used by user");
+            }
+
+            // 👤 USER TYPE
+            const totalOrders = await Order.countDocuments({ userId }).session(session);
+
+            if (coupon.userType === "NEW" && totalOrders > 0) {
+                throw new Error("Coupon only for new users");
+            }
+
+            if (coupon.userType === "EXISTING" && totalOrders === 0) {
+                throw new Error("Coupon only for existing users");
+            }
+
+            // 💰 CALCULATE DISCOUNT
+            if (coupon.discountType === "PERCENTAGE") {
+                discount = (itemTotal * coupon.discountValue) / 100;
+
+                if (coupon.maxDiscount) {
+                    discount = Math.min(discount, coupon.maxDiscount);
+                }
+
+            } else {
+                discount = coupon.discountValue;
+            }
+
+            discount = Math.min(discount, itemTotal);
+
+            // 🔄 Update usage
+            coupon.usedCount += 1;
+            await coupon.save({ session });
+        }
+
+        const totalAmount = itemTotal + deliveryFee - discount;
 
         const orderId = `KUR-${Date.now().toString().slice(-6)}`;
 
@@ -94,8 +172,10 @@ export const createOrder = asyncHandler(async (req, res, next) => {
             userId,
             storeId,
             addressId,
+            couponId : normalizedCouponId,
             itemTotal,
             deliveryFee,
+            discount,
             totalAmount,
             paymentOption,
             status: paymentOption === "COD" ? "CONFIRMED" : "PLACED",
@@ -104,6 +184,7 @@ export const createOrder = asyncHandler(async (req, res, next) => {
 
         const newOrder = order[0];
 
+        // 🔹 STEP 5: SAVE ORDER ITEMS
         const finalOrderItems = orderItemsData.map(item => ({
             ...item,
             orderId: newOrder._id
@@ -114,10 +195,10 @@ export const createOrder = asyncHandler(async (req, res, next) => {
         await session.commitTransaction();
         session.endSession();
 
+        // 🔹 STEP 6: SOCKET (ONLY COD)
         if (paymentOption === "COD") {
             const io = req.app.get("io");
 
-            //  Emit to store dashboard
             io.to(`store_${storeId}`).emit("new_order", {
                 orderId: newOrder._id,
                 displayId: newOrder.orderId,
@@ -128,11 +209,11 @@ export const createOrder = asyncHandler(async (req, res, next) => {
                 createdAt: newOrder.createdAt
             });
 
-            // Emit to NEAREST riders only
+            // 🔥 NEAREST RIDERS
             const store = await Store.findById(storeId);
             const [storeLng, storeLat] = store.location.coordinates;
 
-            const MAX_DISTANCE = 5; // km
+            const MAX_DISTANCE = 5;
 
             for (const [riderId, socketId] of riderSockets.entries()) {
 
@@ -166,10 +247,11 @@ export const createOrder = asyncHandler(async (req, res, next) => {
     } catch (error) {
         await session.abortTransaction();
         session.endSession();
-
         return next(new errorHandler(error.message, 400));
     }
+
 });
+
 
 export const createRazorpayOrder = asyncHandler(async (req, res, next) => {
     const { orderId } = req.body;

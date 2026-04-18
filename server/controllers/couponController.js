@@ -3,6 +3,7 @@ import { errorHandler } from "../utilities/errorHandler.utils.js";
 import { asyncHandler } from "../utilities/asyncHandler.utils.js";
 import Order from "../models/orderModel.js";
 import mongoose from "mongoose";
+import Inventory from "../models/inventoryModel.js";
 export const getAllCouponsByAdmin = asyncHandler(async (req, res, next) => {
     const coupons = await Coupon.find().sort({ createdAt: -1 });
 
@@ -14,10 +15,10 @@ export const getAllCouponsByAdmin = asyncHandler(async (req, res, next) => {
 });
 
 export const createCoupon = asyncHandler(async (req, res, next) => {
-    const { 
-        code, name, description, discountType, discountValue, 
-        maxDiscount, minOrderAmount, validFrom, validTill, 
-        usageLimit, perUserLimit, userType 
+    const {
+        code, name, description, discountType, discountValue,
+        maxDiscount, minOrderAmount, validFrom, validTill,
+        usageLimit, perUserLimit, userType
     } = req.body;
 
     // Check if coupon code already exists
@@ -197,3 +198,118 @@ export const getValidCouponViaUser = asyncHandler(async (req, res, next) => {
         data: validCoupons
     });
 });
+
+
+
+export const applyCoupon = asyncHandler(async (req, res, next) => {
+
+
+    const { items, couponCode, deliveryFee = 0 } = req.body;
+    const userId = req.user._id;
+
+    if (!items || items.length === 0) {
+        return next(new errorHandler("Items required", 400));
+    }
+
+    if (!couponCode) {
+        return next(new errorHandler("Coupon code required", 400));
+    }
+
+    // 🔹 STEP 1: CALCULATE ITEM TOTAL
+    let itemTotal = 0;
+
+    for (const item of items) {
+        const inventory = await Inventory.findOne({
+            variantId: item.variantId,
+            isAvailable: true
+        });
+
+        if (!inventory) {
+            return next(new errorHandler("Product not available", 400));
+        }
+
+        if (inventory.stock < item.quantity) {
+            return next(new errorHandler("Insufficient stock", 400));
+        }
+
+        itemTotal += inventory.price * item.quantity;
+    }
+
+    const coupon = await Coupon.findOne({
+        code: couponCode.toUpperCase()
+    });
+
+    if (!coupon || !coupon.isActive) {
+        return next(new errorHandler("Invalid coupon", 400));
+    }
+
+    const now = new Date();
+
+    if (now < coupon.validFrom || now > coupon.validTill) {
+        return next(new errorHandler("Coupon expired or not active", 400));
+    }
+
+    if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit) {
+        return next(new errorHandler("Coupon usage limit reached", 400));
+    }
+
+    if (itemTotal < coupon.minOrderAmount) {
+        return next(new errorHandler(`Minimum order ₹${coupon.minOrderAmount} required`, 400));
+    }
+
+    // 🔹 STEP 3: USER BASED CHECKS
+
+    const userUsage = await Order.countDocuments({
+        userId,
+        couponId: coupon._id
+    });
+
+    if (userUsage >= coupon.perUserLimit) {
+        return next(new errorHandler("Coupon already used", 400));
+    }
+
+    const totalOrders = await Order.countDocuments({ userId });
+
+    if (coupon.userType === "NEW" && totalOrders > 0) {
+        return next(new errorHandler("Only for new users", 400));
+    }
+
+    if (coupon.userType === "EXISTING" && totalOrders === 0) {
+        return next(new errorHandler("Only for existing users", 400));
+    }
+
+    // 🔹 STEP 4: CALCULATE DISCOUNT
+
+    let discount = 0;
+
+    if (coupon.discountType === "PERCENTAGE") {
+        discount = (itemTotal * coupon.discountValue) / 100;
+
+        if (coupon.maxDiscount) {
+            discount = Math.min(discount, coupon.maxDiscount);
+        }
+
+    } else {
+        discount = coupon.discountValue;
+    }
+
+    discount = Math.min(discount, itemTotal);
+
+    // 🔹 STEP 5: FINAL TOTAL
+    const totalAmount = itemTotal + deliveryFee - discount;
+
+    res.status(200).json({
+        success: true,
+        data: {
+            couponId: coupon._id,
+            code: coupon.code,
+            discount,
+            itemTotal,
+            deliveryFee,
+            totalAmount,
+            savings: discount
+        }
+    });
+
+});
+
