@@ -50,7 +50,14 @@ const riderSchema = new mongoose.Schema({
 
   vehicleType: {
     type: String,
-    enum: ["bike", "cycle"]
+    enum: [
+      "bike",       
+      "scooter",    
+      "cycle",       
+      "electric",   
+      "walking",     
+      "other"
+    ]
   },
 
   location: {
@@ -61,7 +68,7 @@ const riderSchema = new mongoose.Schema({
     },
     coordinates: {
       type: [Number],
-      default: [0, 0] 
+      default: [0, 0]
     }
   },
 
