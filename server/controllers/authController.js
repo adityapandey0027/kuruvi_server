@@ -200,11 +200,10 @@ export const sendRiderOtp = asyncHandler(async (req, res, next) => {
         return next(new errorHandler(`Wait ${ttl}s before retry`, 429));
     }
 
-    // const otp = Math.floor(1000 + Math.random() * 9000);
-    const otp = 2200;
+    const otp = Math.floor(1000 + Math.random() * 9000);
 
     if (process.env.NODE_ENV === "production") {
-        // await sendSms(rider.phone, otp);
+        await sendSms(rider.phone, otp);
     }
 
     await connection.set(otpKey, otp.toString(), "EX", 600);

@@ -516,15 +516,15 @@ export const markDeliverOrder = asyncHandler(async (req, res, next) => {
         return next(new errorHandler("Collect payment before delivery", 400));
     }
 
-   // const otp = Math.floor(1000 + Math.random() * 9000);
-    const otp = 2200;
+   const otp = Math.floor(1000 + Math.random() * 9000);
+
 
     const otpKey = `delivery_otp:${order._id}`;
 
     await connection.set(otpKey, otp.toString(), "EX", 300);
 
     if (process.env.NODE_ENV === "production") {
-       // await sendSms(order.addressId?.receiverPhone, ` ${otp}`);
+       await sendSms(order.addressId?.receiverPhone, ` ${otp}`);
     }
 
     res.status(200).json({

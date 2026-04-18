@@ -146,13 +146,27 @@ export const addCartItem = asyncHandler(async (req, res, next) => {
         });
     } else {
 
-        // Prevent multi-store cart
-        if (cart.storeId.toString() !== storeId) {
-            return next(new errorHandler("Cart contains items from another store", 400));
+        if (cart.storeId.toString() !== storeId.toString()) {
+
+            //  Clear old cart & replace with new store
+            cart.storeId = storeId;
+            cart.items = [{
+                variantId,
+                quantity: 1,
+                price: inventory.price
+            }];
+
+            await cart.save();
+
+            return res.status(200).json({
+                success: true,
+                message: "Cart reset for new store",
+                data: cart
+            });
         }
 
         const index = cart.items.findIndex(
-            item => item.variantId.toString() === variantId
+            item => item.variantId.toString() === variantId.toString()
         );
 
         if (index > -1) {
@@ -260,16 +274,23 @@ export const removeCartItem = asyncHandler(async (req, res, next) => {
     });
 });
 
+
 export const clearCart = asyncHandler(async (req, res, next) => {
     const userId = req.user._id;
 
-    await Cart.findOneAndUpdate(
+    const cart = await Cart.findOneAndUpdate(
         { userId },
-        { items: [] }
+        { $set: { items: [] } },
+        { returnDocument: "after" }
     );
+
+    if (!cart) {
+        return next(new errorHandler("Cart not found", 404));
+    }
 
     res.status(200).json({
         success: true,
-        message: "Cart cleared"
+        message: "Cart cleared",
+        data: cart
     });
 });
