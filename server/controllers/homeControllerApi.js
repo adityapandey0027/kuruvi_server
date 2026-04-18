@@ -20,7 +20,7 @@ export const getMostShoppedProducts = asyncHandler(async (req, res, next) => {
         dateFilter.createdAt = { $gte: pastDate };
     }
 
-    const pipeline = [
+    let data = await Order.aggregate([
         {
             $match: {
                 storeId: new mongoose.Types.ObjectId(storeId),
@@ -29,7 +29,6 @@ export const getMostShoppedProducts = asyncHandler(async (req, res, next) => {
             }
         },
 
-        // 🔗 Order Items
         {
             $lookup: {
                 from: "orderitems",
@@ -40,7 +39,6 @@ export const getMostShoppedProducts = asyncHandler(async (req, res, next) => {
         },
         { $unwind: "$items" },
 
-        // 🔗 Variant
         {
             $lookup: {
                 from: "variants",
@@ -51,7 +49,6 @@ export const getMostShoppedProducts = asyncHandler(async (req, res, next) => {
         },
         { $unwind: "$variant" },
 
-        // 🔥 GROUP by product → total sold
         {
             $group: {
                 _id: "$variant.productId",
@@ -62,7 +59,6 @@ export const getMostShoppedProducts = asyncHandler(async (req, res, next) => {
         { $sort: { totalSold: -1 } },
         { $limit: Number(limit) },
 
-        // 🔗 Product
         {
             $lookup: {
                 from: "products",
@@ -74,136 +70,92 @@ export const getMostShoppedProducts = asyncHandler(async (req, res, next) => {
         { $unwind: "$product" },
 
         {
-            $match: {
-                "product.isActive": true
-            }
-        },
-
-        // 🔥 FETCH ALL VARIANTS FROM INVENTORY
-        {
-            $lookup: {
-                from: "inventories",
-                let: { productId: "$_id" },
-                pipeline: [
-                    {
-                        $match: {
-                            storeId: new mongoose.Types.ObjectId(storeId),
-                            isAvailable: true,
-                            stock: { $gt: 0 }
-                        }
-                    },
-                    {
-                        $lookup: {
-                            from: "variants",
-                            localField: "variantId",
-                            foreignField: "_id",
-                            as: "variant"
-                        }
-                    },
-                    { $unwind: "$variant" },
-
-                    {
-                        $match: {
-                            $expr: {
-                                $eq: ["$variant.productId", "$$productId"]
-                            }
-                        }
-                    },
-
-                    // 💰 Discount calculation
-                    {
-                        $addFields: {
-                            discount: {
-                                $subtract: ["$variant.mrp", "$price"]
-                            },
-                            discountPercentage: {
-                                $cond: [
-                                    { $gt: ["$variant.mrp", 0] },
-                                    {
-                                        $multiply: [
-                                            {
-                                                $divide: [
-                                                    { $subtract: ["$variant.mrp", "$price"] },
-                                                    "$variant.mrp"
-                                                ]
-                                            },
-                                            100
-                                        ]
-                                    },
-                                    0
-                                ]
-                            }
-                        }
-                    }
-                ],
-                as: "variants"
-            }
-        },
-
-        { $unwind: { path: "$variants", preserveNullAndEmptyArrays: true } },
-
-        // 🔥 GROUP AGAIN → COLLECT VARIANTS
-        {
-            $group: {
-                _id: "$_id",
-                product: { $first: "$product" },
-                totalSold: { $first: "$totalSold" },
-
-                variants: {
-                    $push: {
-                        _id: "$variants.variant._id",
-                        sku: "$variants.variant.sku",
-                        mrp: "$variants.variant.mrp",
-                        size: "$variants.variant.size",
-                        unit: "$variants.variant.unit",
-                        weight: "$variants.variant.weight",
-                        price: "$variants.price",
-                        stock: "$variants.stock",
-                        discount: "$variants.discount",
-                        discountPercentage: {
-                            $round: ["$variants.discountPercentage", 2]
-                        },
-                        image: {
-                            $arrayElemAt: ["$variants.variant.images.url", 0]
-                        }
-                    }
-                }
-            }
-        },
-
-        // 🔥 SORT VARIANTS → CHEAPEST FIRST
-        {
-            $addFields: {
-                variants: {
-                    $sortArray: {
-                        input: "$variants",
-                        sortBy: { price: 1 }
-                    }
-                }
-            }
-        },
-
-        // 🔥 FINAL OUTPUT
-        {
-            $project: {
-                _id: 0,
-                product: {
-                    _id: "$product._id",
-                    name: "$product.name",
-                    brand: "$product.brand",
-                    description: "$product.description"
-                },
-                totalSold: 1,
-                variants: 1
-            }
+            $match: { "product.isActive": true }
         }
-    ];
+    ]);
 
-    const data = await Order.aggregate(pipeline);
+    if (!data || data.length === 0) {
+
+        const fallback = await Inventory.aggregate([
+            {
+                $match: {
+                    storeId: new mongoose.Types.ObjectId(storeId),
+                    isAvailable: true,
+                    stock: { $gt: 0 }
+                }
+            },
+
+            {
+                $lookup: {
+                    from: "variants",
+                    localField: "variantId",
+                    foreignField: "_id",
+                    as: "variant"
+                }
+            },
+            { $unwind: "$variant" },
+
+            {
+                $lookup: {
+                    from: "products",
+                    localField: "variant.productId",
+                    foreignField: "_id",
+                    as: "product"
+                }
+            },
+            { $unwind: "$product" },
+
+            {
+                $group: {
+                    _id: "$product._id",
+                    product: { $first: "$product" },
+                    variants: {
+                        $push: {
+                            _id: "$variant._id",
+                            price: "$price",
+                            mrp: "$variant.mrp",
+                            size: "$variant.size",
+                            unit: "$variant.unit",
+                            stock: "$stock",
+                            image: {
+                                $arrayElemAt: ["$variant.images.url", 0]
+                            }
+                        }
+                    }
+                }
+            },
+
+            {
+                $limit: Number(limit)
+            },
+
+            {
+                $project: {
+                    _id: 0,
+                    product: {
+                        _id: "$product._id",
+                        name: "$product.name",
+                        brand: "$product.brand",
+                        description: "$product.description"
+                    },
+                    totalSold: 0, // 👈 fallback
+                    variants: 1
+                }
+            }
+        ]);
+
+        return res.status(200).json({
+            success: true,
+            count: fallback.length,
+            fallback: true,
+            data: fallback
+        });
+    }
 
     res.status(200).json({
         success: true,
         count: data.length,
+        fallback: false,
         data
     });
 });
