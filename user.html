@@ -1,32 +1,40 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <title>Socket Test</title>
 </head>
+
 <body>
   <h2>Socket Test</h2>
 
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
   <script>
-    const socket = io("http://localhost:8080", {
+    const socket = io("http://43.205.241.171", {
+      path: "/api/socket.io",   
       query: {
         userId: "user_1",
         role: "user"
       },
-      transports: ["websocket"]
+      transports: ["websocket", "polling"]
     });
 
     socket.on("connect", () => {
       console.log("✅ Connected:", socket.id);
 
-      // Join order
+      // Join order room
       socket.emit("join_order", "ORDER_1");
     });
 
     socket.on("rider_location_update", (data) => {
       console.log("📍 Rider Location:", data);
     });
+
+    socket.on("connect_error", (err) => {
+      console.error("❌ Connection error:", err.message);
+    });
   </script>
 </body>
+
 </html>

@@ -14,7 +14,7 @@ const StoreManagement = () => {
   const fetchStores = async () => {
     try {
       setLoading(true);
-      const { data } = await API.get('/stores'); // Backend endpoint check karein
+      const { data } = await API.get('/stores'); 
       setStores(data.data || []);
     } catch (err) {
       toast.error("Failed to load stores");

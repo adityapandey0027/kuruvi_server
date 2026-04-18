@@ -1,33 +1,36 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <title>Rider</title>
 </head>
+
 <body>
 
-<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
-<script>
-  const socket = io("http://localhost:8080", {
-    query: {
-      userId: "rider_1",
-      role: "rider"
-    },
-    transports: ["websocket"]
-  });
+  <script>
+    const socket = io("http://43.205.241.171", {
+      path: "/api/socket.io",   // 🔥 MUST match Nginx
+      query: {
+        userId: "rider_1",
+        role: "rider"
+      },
+      transports: ["websocket", "polling"] // allow fallback
+    });
 
-  socket.on("connect", () => {
-    console.log("🚴 Rider Connected");
+    socket.on("connect", () => {
+      console.log("🚴 Rider Connected:", socket.id);
 
-    setInterval(() => {
-      socket.emit("update_location", {
-        orderId: "ORDER_1",
-        lat: 23.2599,
-        lng: 77.4126
-      });
-    }, 6000);
-  });
-</script>
-
+      setInterval(() => {
+        socket.emit("update_location", {
+          orderId: "ORDER_1",
+          lat: 23.2599,
+          lng: 77.4126
+        });
+      }, 6000);
+    });
+  </script>
 </body>
+
 </html>

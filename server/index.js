@@ -35,6 +35,7 @@ import deliveryConfigRoutes from './routes/deliveryConfigRoutes.js';
 import contactRoute from './routes/contactRoutes.js';
 import notificationRouter from './routes/notificationRoutes.js';
 import systemRoute from './routes/systemRoutes.js';
+import reportRoutes from './routes/reportRoutes.js';
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -198,7 +199,7 @@ app.use("/v1/delivery", deliveryConfigRoutes);
 app.use("/v1/contacts", contactRoute);
 app.use("/v1/notifications", notificationRouter);
 app.use("/v1/systems", systemRoute);
-
+app.use("/v1/reports", reportRoutes);
 // Health
 app.get("/", (req, res) => {
   res.send("Server is running");

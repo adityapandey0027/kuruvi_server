@@ -13,6 +13,7 @@ import BrandBanner from '../features/admin/settings/pages/BrandBanner';
 import CouponManage from '../features/admin/ecommerce-setup/pages/CouponManage';
 import DeliveryConfig from '../features/admin/ecommerce-setup/pages/DeliveryConfig';
 import ContactConfig from '../features/admin/settings/pages/ContactConfig';
+import ProductStockReport from '../features/admin/reports/pages/ProductStockReport';
 
 // --- Loading Spinner ---
 const PageLoader = () => (
@@ -118,6 +119,8 @@ const AppRouter = () => {
           <Route path="customer/view/:id" element={<CustomerDetail />} />
           <Route path="delivery-boys" element={<DeliveryBoyList />} />
           <Route path="delivery-boys/view/:id" element={<DeliveryBoyDetail />} />
+
+          <Route path="reports/product-stock" element={<ProductStockReport />} />
 
           {/* Coming Soon Placeholder */}
           <Route path="orders" element={
