@@ -161,7 +161,9 @@ app.use(express.urlencoded({ extended: true }));
 const allowedOrigins = [
   "http://localhost:5173",
   "https://nljg1w4q-5173.inc1.devtunnels.ms",
-  "http://43.205.241.171"
+  "http://43.205.241.171",
+  "http://13.202.66.40",
+  "https://13.202.66.40"
 ];
 
 app.use(cors({
