@@ -163,7 +163,8 @@ const allowedOrigins = [
   "https://nljg1w4q-5173.inc1.devtunnels.ms",
   "http://43.205.241.171",
   "http://13.202.66.40",
-  "https://13.202.66.40"
+  "https://13.202.66.40",
+  "https://dashboard.kuruvikal.in"
 ];
 
 app.use(cors({
