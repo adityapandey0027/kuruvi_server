@@ -86,7 +86,7 @@ io.on("connection", (socket) => {
           lat < -90 || lat > 90 ||
           lng < -180 || lng > 180
         ) return;
-
+        console.log(`📍 Rider ${userId} location: ${lat}, ${lng}`);
         riderLocations.set(userId, {
           lat,
           lng,
