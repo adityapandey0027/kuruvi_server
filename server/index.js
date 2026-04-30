@@ -8,15 +8,18 @@ import { Server } from "socket.io";
 
 import { connectDB } from './config/db.js';
 import { errorMiddleware } from './middlewares/errorMiddleware.js';
+import connection from "./config/redis.js";
 
 import {
   userSockets,
   riderSockets,
   storeSockets,
-  riderLocations
+  setRiderSocket,
+  setRiderLocation,
+  removeRider
 } from "./socketStore.js";
 
-// Routes (same as yours)
+// routes (same as yours)
 import authRouter from './routes/authRoutes.js';
 import categoryRoute from './routes/categoryRoutes.js';
 import storeRoute from './routes/storeRoute.js';
@@ -43,21 +46,27 @@ const port = process.env.PORT || 8080;
 const server = http.createServer(app);
 
 const io = new Server(server, {
-  origin: [
-    "http://localhost:5173",
-    "https://nljg1w4q-5173.inc1.devtunnels.ms",
-    "http://43.205.241.171:5173"
-  ],
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-  credentials: true
+  cors: {
+    origin: [
+      "http://localhost:5173",
+      "https://nljg1w4q-5173.inc1.devtunnels.ms",
+      "http://43.205.241.171:5173"
+    ],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+    credentials: true
+  }
 });
 
-io.on("connection", (socket) => {
+
+// =========================
+// 🔌 SOCKET CONNECTION
+// =========================
+io.on("connection", async (socket) => {
   try {
     const { userId, role, storeId } = socket.handshake.query;
 
     if (!userId || !role) {
-      console.log("Missing userId or role");
+      console.log("❌ Missing userId or role");
       socket.disconnect();
       return;
     }
@@ -70,33 +79,46 @@ io.on("connection", (socket) => {
 
     console.log(`🔌 ${role} connected: ${userId}`);
 
+    // =========================
+    // 👤 USER
+    // =========================
     if (role === "user") {
       userSockets.set(userId, socket.id);
-       console.log(userId, socket.id);
+
+      // Redis backup
+      await connection.set(`user:${userId}`, socket.id, { EX: 3600 });
+
       socket.join(`user_${userId}`);
     }
 
+    // =========================
+    // 🛵 RIDER
+    // =========================
     if (role === "rider") {
-      riderSockets.set(userId, socket.id);
+      await setRiderSocket(userId, socket.id);
 
-      socket.on("update_rider_location", ({ lat, lng }) => {
+      socket.on("update_rider_location", async ({ lat, lng }) => {
         if (
           typeof lat !== "number" ||
           typeof lng !== "number" ||
           lat < -90 || lat > 90 ||
           lng < -180 || lng > 180
         ) return;
-        console.log(`📍 Rider ${userId} location: ${lat}, ${lng}`);
-        riderLocations.set(userId, {
-          lat,
-          lng,
-          ts: Date.now()
-        });
+
+        console.log(`📍 Rider ${userId}: ${lat}, ${lng}`);
+
+        // saves in Map + Redis (with TTL)
+        await setRiderLocation(userId, { lat, lng });
       });
     }
 
+    // =========================
+    // 🏪 STORE
+    // =========================
     if (role === "store") {
       storeSockets.set(userId, socket.id);
+
+      await connection.set(`store:${userId}`, socket.id, { EX: 3600 });
 
       if (storeId) {
         socket.join(`store_${storeId}`);
@@ -104,6 +126,9 @@ io.on("connection", (socket) => {
       }
     }
 
+    // =========================
+    // 📦 ORDER ROOM
+    // =========================
     socket.on("join_order", (orderId) => {
       if (!orderId) return;
 
@@ -111,6 +136,9 @@ io.on("connection", (socket) => {
       console.log(`📦 Joined order room: ${orderId}`);
     });
 
+    // =========================
+    // 📍 LIVE TRACKING
+    // =========================
     socket.on("update_location", ({ orderId, lat, lng }) => {
       if (!orderId) return;
 
@@ -121,40 +149,41 @@ io.on("connection", (socket) => {
       });
     });
 
-    socket.on("disconnect", () => {
+    // =========================
+    // ❌ DISCONNECT
+    // =========================
+    socket.on("disconnect", async () => {
       const { userId, role } = socket.data;
 
       console.log(`❌ ${role} disconnected: ${userId}`);
 
-      if (role === "user") userSockets.delete(userId);
-
-      if (role === "rider") {
-        riderSockets.delete(userId);
-        riderLocations.delete(userId);
+      if (role === "user") {
+        userSockets.delete(userId);
+        await connection.del(`user:${userId}`);
       }
 
-      if (role === "store") storeSockets.delete(userId);
+      if (role === "rider") {
+        await removeRider(userId);
+      }
+
+      if (role === "store") {
+        storeSockets.delete(userId);
+        await connection.del(`store:${userId}`);
+      }
     });
 
   } catch (err) {
-    console.error("Socket Error:", err.message);
+    console.error("❌ Socket Error:", err.message);
     socket.disconnect();
   }
 });
 
-setInterval(() => {
-  const now = Date.now();
 
-  for (const [riderId, loc] of riderLocations.entries()) {
-    if (now - loc.ts > 15000) {
-      riderLocations.delete(riderId);
-    }
-  }
-}, 10000);
-
+// =========================
+// EXPRESS SETUP
+// =========================
 app.set("io", io);
 
-// Middlewares
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -169,21 +198,24 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
 
-    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+    if (
+      allowedOrigins.includes(origin) ||
+      process.env.NODE_ENV === 'development'
+    ) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true, // Required for cookies/sessions
-  methods: ["GET", "POST", "PUT", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization"]
+  credentials: true
 }));
 
-// Routes (same as yours)
+
+// =========================
+// ROUTES
+// =========================
 app.use("/v1/auth", authRouter);
 app.use("/v1/categories", categoryRoute);
 app.use("/v1/stores", storeRoute);
@@ -203,18 +235,23 @@ app.use("/v1/contacts", contactRoute);
 app.use("/v1/notifications", notificationRouter);
 app.use("/v1/systems", systemRoute);
 app.use("/v1/reports", reportRoutes);
-// Health
+
+
+// =========================
+// HEALTH
+// =========================
 app.get("/", (req, res) => {
   res.send("Server is running");
 });
 
-// DB
+
+// =========================
+// DB + START
+// =========================
 await connectDB();
 
-// Error
 app.use(errorMiddleware);
 
-// Start
 server.listen(port, () => {
   console.log(`🚀 Server running with WebSocket on ${port}`);
 });

@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import API from "../../../../api/axios"; 
 import { 
   Wallet, Landmark, FileText, ArrowLeft, Loader2, ExternalLink, 
-  CheckCircle, Package, MapPin, ShieldCheck, Power, UserCheck, Smartphone
+  CheckCircle, Package, MapPin, ShieldCheck, Power, UserCheck, 
+  Smartphone, Truck, Navigation
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 
@@ -29,13 +30,19 @@ const DeliveryBoyDetail = () => {
   useEffect(() => { fetchDetails(); }, [id]);
 
   const handleAccountAction = async (actionType, value) => {
+    const confirmMessage = actionType === 'isActive' 
+      ? `Are you sure you want to ${value ? 'activate' : 'deactivate'} this rider?`
+      : `Mark documents as verified?`;
+
+    if (!window.confirm(confirmMessage)) return;
+
     try {
       setActionLoading(true);
       await API.put(`/admin/riders/update-status/${id}`, { [actionType]: value });
-      toast.success(`Rider ${actionType} updated successfully`);
+      toast.success(`Rider ${actionType === 'isActive' ? 'Status' : 'Verification'} updated`);
       fetchDetails(); 
     } catch (err) {
-      toast.error("Operation failed");
+      toast.error("Operation failed. Please try again.");
     } finally {
       setActionLoading(false);
     }
@@ -47,9 +54,9 @@ const DeliveryBoyDetail = () => {
     </div>
   );
 
-  if (!data || !data.rider) return <div className="p-20 text-center font-black text-slate-300">Rider Not Found</div>;
+  if (!data || !data.rider) return <div className="p-20 text-center font-black text-slate-300 uppercase tracking-widest">Rider Not Found</div>;
 
-  const { rider, stats } = data;
+  const { rider, stats, location } = data;
 
   return (
     <div className="space-y-6 pb-20 font-sans max-w-7xl mx-auto px-4">
@@ -62,7 +69,7 @@ const DeliveryBoyDetail = () => {
           </button>
           <div>
             <h2 className="text-xl font-black uppercase tracking-tight">Partner Fleet Controls</h2>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Verification & Account Status</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">System ID: {id.slice(-8)}</p>
           </div>
         </div>
 
@@ -71,7 +78,7 @@ const DeliveryBoyDetail = () => {
             <button 
               disabled={actionLoading}
               onClick={() => handleAccountAction('isVerified', true)}
-              className="bg-emerald-600 text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-black transition-all flex items-center gap-2"
+              className="bg-emerald-600 text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-black disabled:opacity-50 transition-all flex items-center gap-2"
             >
               <CheckCircle size={14} /> Verify Documents
             </button>
@@ -88,7 +95,7 @@ const DeliveryBoyDetail = () => {
               rider.isActive 
               ? 'bg-rose-50 text-rose-600 border-rose-100 hover:bg-rose-600 hover:text-white' 
               : 'bg-black text-white border-black hover:bg-[#7e2827]'
-            }`}
+            } disabled:opacity-50`}
           >
             <Power size={14} /> {rider.isActive ? 'Deactivate Account' : 'Activate Account'}
           </button>
@@ -120,11 +127,15 @@ const DeliveryBoyDetail = () => {
                 <div className="grid grid-cols-2 gap-3">
                     <div className="bg-slate-50 p-3 rounded-2xl">
                         <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Contact</p>
-                        <p className="text-[11px] font-black">{rider.phone}</p>
+                        <p className="text-[11px] font-black flex items-center gap-1 justify-center sm:justify-start">
+                          <Smartphone size={10} /> {rider.phone}
+                        </p>
                     </div>
                     <div className="bg-slate-50 p-3 rounded-2xl">
-                        <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Gender / Age</p>
-                        <p className="text-[11px] font-black">{rider.gender} • {rider.age}</p>
+                        <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Vehicle Info</p>
+                        <p className="text-[11px] font-black flex items-center gap-1 justify-center sm:justify-start uppercase">
+                          <Truck size={10} /> {rider.vehicleType || 'Two-Wheeler'}
+                        </p>
                     </div>
                 </div>
             </div>
@@ -173,31 +184,53 @@ const DeliveryBoyDetail = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="p-5 bg-slate-50 rounded-[2rem] border border-slate-100 flex justify-between items-center">
                 <div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Aadhaar Card</p>
-                    <p className="text-sm font-black tracking-widest">{rider.documents?.aadhaarNumber}</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Government ID (Aadhaar)</p>
+                    <p className="text-sm font-black tracking-widest">
+                      {rider.documents?.aadhaarNumber ? `XXXX-XXXX-${rider.documents.aadhaarNumber.slice(-4)}` : '[Aadhaar Redacted]'}
+                    </p>
                 </div>
                 <a href={rider.documents?.aadhaarImage?.url} target="_blank" rel="noreferrer" className="p-3 bg-white rounded-xl shadow-sm text-[#7e2827] hover:bg-black hover:text-white transition-all"><ExternalLink size={18} /></a>
             </div>
             <div className="p-5 bg-slate-50 rounded-[2rem] border border-slate-100 flex justify-between items-center">
                 <div>
                     <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Driving License</p>
-                    <p className="text-sm font-black tracking-widest">{rider.documents?.drivingLicenseNumber}</p>
+                    <p className="text-sm font-black tracking-widest">{rider.documents?.drivingLicenseNumber || "NOT_PROVIDED"}</p>
                 </div>
                 <a href={rider.documents?.drivingLicenseImage?.url} target="_blank" rel="noreferrer" className="p-3 bg-white rounded-xl shadow-sm text-[#7e2827] hover:bg-black hover:text-white transition-all"><ExternalLink size={18} /></a>
             </div>
           </div>
         </div>
 
-        {/* Quick Address */}
-        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col justify-center">
-            <div className="flex items-center gap-2 mb-4 text-[#7e2827]">
-                <MapPin size={18} />
-                <h4 className="text-xs font-black uppercase tracking-widest">Base Residence</h4>
+        {/* Live Location Widget */}
+        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2 text-[#7e2827]">
+                    <MapPin size={18} />
+                    <h4 className="text-xs font-black uppercase tracking-widest">Real-time Ping</h4>
+                </div>
+                {location?.lat && (
+                  <a 
+                    href={`https://www.google.com/maps?q=${location.lat},${location.lng}`} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    className="text-[10px] font-black uppercase text-blue-600 underline flex items-center gap-1"
+                  >
+                    <Navigation size={12} /> View Map
+                  </a>
+                )}
             </div>
-            <p className="text-xs font-bold text-slate-600 uppercase leading-relaxed">
-                {rider.address.fullAddress}<br/>
-                {rider.address.city} - {rider.address.pincode}
-            </p>
+            <div className="space-y-2">
+                <p className="text-[10px] font-bold text-slate-600 uppercase leading-relaxed">
+                    {rider.address?.fullAddress}<br/>
+                    {rider.address?.city} - {rider.address?.pincode}
+                </p>
+                <div className="pt-2 border-t border-slate-50">
+                   <p className="text-[8px] font-black text-slate-400 uppercase">Last Signal</p>
+                   <p className="text-[10px] font-bold text-slate-500">
+                     {location?.ts ? new Date(location.ts).toLocaleString() : 'No active signal'}
+                   </p>
+                </div>
+            </div>
         </div>
       </div>
 

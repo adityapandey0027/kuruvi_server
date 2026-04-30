@@ -3,7 +3,7 @@ import { errorHandler } from "../utilities/errorHandler.utils.js";
 import { asyncHandler } from "../utilities/asyncHandler.utils.js";
 import Rider from "../models/riderModel.js";
 import Order from "../models/orderModel.js";
-import { riderSockets } from "../socketStore.js";
+import { riderSockets, riderLocations } from "../socketStore.js";
 import mongoose from "mongoose";
 import { sendSms } from "../utilities/sendSms.utils.js";
 import connection from "../config/redis.js";
@@ -294,7 +294,8 @@ export const getRiderDetails = asyncHandler(async (req, res, next) => {
     res.status(200).json({
         success: true,
         data: {
-            rider,   // 👈 full rider
+            rider,
+            location: riderLocations.get(riderId.toString()) || null,
             stats,
             orders,
             pagination: {
@@ -439,7 +440,7 @@ export const pickupOrder = asyncHandler(async (req, res, next) => {
 
     const order = await Order.findOneAndUpdate(
         {
-            orderId: orderId,
+            orderId,
             riderId,
             status: { $in: ["CONFIRMED", "PACKING"] }
         },
@@ -448,7 +449,7 @@ export const pickupOrder = asyncHandler(async (req, res, next) => {
             pickedAt: new Date()
         },
         { new: true }
-    );
+    ).populate("addressId");
 
     if (!order) {
         return next(new errorHandler("Order not found or not assigned", 404));
@@ -516,7 +517,7 @@ export const markDeliverOrder = asyncHandler(async (req, res, next) => {
         return next(new errorHandler("Collect payment before delivery", 400));
     }
 
-   const otp = Math.floor(1000 + Math.random() * 9000);
+    const otp = Math.floor(1000 + Math.random() * 9000);
 
 
     const otpKey = `delivery_otp:${order._id}`;
@@ -524,7 +525,7 @@ export const markDeliverOrder = asyncHandler(async (req, res, next) => {
     await connection.set(otpKey, otp.toString(), "EX", 300);
 
     if (process.env.NODE_ENV === "production") {
-       await sendSms(order.addressId?.receiverPhone, ` ${otp}`);
+        await sendSms(order.addressId?.receiverPhone, ` ${otp}`);
     }
 
     res.status(200).json({

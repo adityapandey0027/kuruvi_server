@@ -10,7 +10,7 @@ import crypto from "crypto";
 import Store from "../models/storeModel.js";
 import { riderSockets, riderLocations } from "../socketStore.js";
 import Coupon from "../models/couponModel.js";
-
+import { emitNewOrder } from "../utilities/socketEmitter.js";
 export const razorpay = new Razorpay({
     key_id: process.env.RAZORPAY_KEY_ID,
     key_secret: process.env.RAZORPAY_KEY_SECRET
@@ -48,9 +48,9 @@ export const createOrder = asyncHandler(async (req, res, next) => {
     }
 
     const normalizedCouponId =
-    couponId && mongoose.Types.ObjectId.isValid(couponId)
-        ? couponId
-        : null;
+        couponId && mongoose.Types.ObjectId.isValid(couponId)
+            ? couponId
+            : null;
 
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -172,7 +172,7 @@ export const createOrder = asyncHandler(async (req, res, next) => {
             userId,
             storeId,
             addressId,
-            couponId : normalizedCouponId,
+            couponId: normalizedCouponId,
             itemTotal,
             deliveryFee,
             discount,
@@ -197,45 +197,52 @@ export const createOrder = asyncHandler(async (req, res, next) => {
 
         // 🔹 STEP 6: SOCKET (ONLY COD)
         if (paymentOption === "COD") {
+            // const io = req.app.get("io");
+
+            // io.to(`store_${storeId}`).emit("new_order", {
+            //     orderId: newOrder._id,
+            //     displayId: newOrder.orderId,
+            //     amount: totalAmount,
+            //     itemsCount: items.length,
+            //     status: newOrder.status,
+            //     paymentType: newOrder.paymentOption,
+            //     createdAt: newOrder.createdAt
+            // });
+
+            // const store = await Store.findById(storeId);
+            // const [storeLng, storeLat] = store.location.coordinates;
+
+            // const MAX_DISTANCE = 50;
+
+            // for (const [riderId, socketId] of riderSockets.entries()) {
+
+            //     const riderLoc = riderLocations.get(riderId);
+            //     if (!riderLoc) continue;
+
+            //     const distance = getDistance(
+            //         storeLat,
+            //         storeLng,
+            //         riderLoc.lat,
+            //         riderLoc.lng
+            //     );
+
+            //     if (distance <= MAX_DISTANCE) {
+            //         io.to(socketId).emit("new_order", {
+            //             orderId: newOrder._id,
+            //             displayId: newOrder.orderId,
+            //             amount: totalAmount,
+            //             status: newOrder.status
+            //         });
+            //     }
+            // }
+
             const io = req.app.get("io");
 
-            io.to(`store_${storeId}`).emit("new_order", {
-                orderId: newOrder._id,
-                displayId: newOrder.orderId,
-                amount: totalAmount,
+            await emitNewOrder({
+                io,
+                order: newOrder,
                 itemsCount: items.length,
-                status: newOrder.status,
-                paymentType: newOrder.paymentOption,
-                createdAt: newOrder.createdAt
             });
-
-            // 🔥 NEAREST RIDERS
-            const store = await Store.findById(storeId);
-            const [storeLng, storeLat] = store.location.coordinates;
-
-            const MAX_DISTANCE = 5;
-
-            for (const [riderId, socketId] of riderSockets.entries()) {
-
-                const riderLoc = riderLocations.get(riderId);
-                if (!riderLoc) continue;
-
-                const distance = getDistance(
-                    storeLat,
-                    storeLng,
-                    riderLoc.lat,
-                    riderLoc.lng
-                );
-
-                if (distance <= MAX_DISTANCE) {
-                    io.to(socketId).emit("new_order", {
-                        orderId: newOrder._id,
-                        displayId: newOrder.orderId,
-                        amount: totalAmount,
-                        status: newOrder.status
-                    });
-                }
-            }
         }
 
         res.status(201).json({
